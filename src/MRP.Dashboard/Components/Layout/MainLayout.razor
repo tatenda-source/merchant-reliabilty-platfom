@@ -1,0 +1,49 @@
+@inherits LayoutComponentBase
+
+<div class="pn-app">
+    <nav class="pn-sidebar">
+        <div class="pn-sidebar-logo">
+            <div class="pn-logo-icon">MRP</div>
+            <h2>Paynow MRP</h2>
+        </div>
+        <div class="pn-nav">
+            <NavLink class="pn-nav-item" href="/" Match="NavLinkMatch.All">
+                <span>&#9638;</span> Overview
+            </NavLink>
+            <NavLink class="pn-nav-item" href="/merchants">
+                <span>&#9962;</span> Merchants
+            </NavLink>
+            <NavLink class="pn-nav-item" href="/transactions">
+                <span>&#8644;</span> Transactions
+            </NavLink>
+            <NavLink class="pn-nav-item" href="/reconciliation">
+                <span>&#9878;</span> Reconciliation
+            </NavLink>
+            <NavLink class="pn-nav-item" href="/recovery">
+                <span>&#8635;</span> Recovery
+            </NavLink>
+            <NavLink class="pn-nav-item" href="/agents">
+                <span>&#9881;</span> Agents
+            </NavLink>
+            <NavLink class="pn-nav-item" href="/settings">
+                <span>&#9881;</span> Settings
+            </NavLink>
+        </div>
+    </nav>
+
+    <div class="pn-main-wrapper">
+        <header class="pn-topbar">
+            <div>
+                <strong style="color: var(--pn-gray-800);">Merchant Reliability Platform</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <span class="pn-badge pn-badge-success">System Online</span>
+                <span style="color: var(--pn-gray-500); font-size: 0.875rem;">3 Agents Running</span>
+            </div>
+        </header>
+
+        <main class="pn-main">
+            @Body
+        </main>
+    </div>
+</div>

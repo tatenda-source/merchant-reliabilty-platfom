@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>MRP.Agents</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MRP.Domain\MRP.Domain.csproj" />
+    <ProjectReference Include="..\MRP.Application\MRP.Application.csproj" />
+    <ProjectReference Include="..\MRP.Infrastructure\MRP.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

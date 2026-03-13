@@ -1,0 +1,39 @@
+@* Reusable MetricCard component for dashboard statistics *@
+
+<div class="pn-metric-card @VariantClass">
+    <div class="pn-metric-card__icon" style="background: @IconBg; color: @IconColor;">
+        @Icon
+    </div>
+    <div>
+        <span class="pn-metric-card__label">@Label</span>
+        <div class="pn-metric-card__value pn-mono">@Value</div>
+        @if (!string.IsNullOrEmpty(Trend))
+        {
+            <div class="pn-metric-card__trend @TrendClass">@Trend</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string IconBg { get; set; } = "var(--pn-primary-50)";
+    [Parameter] public string IconColor { get; set; } = "var(--pn-primary-500)";
+    [Parameter] public string? Trend { get; set; }
+    [Parameter] public bool TrendUp { get; set; } = true;
+    [Parameter] public string Variant { get; set; } = "";
+
+    private string VariantClass => Variant switch
+    {
+        "hero" => "pn-metric-card--hero",
+        "success" => "pn-metric-card--success",
+        "warning" => "pn-metric-card--warning",
+        "danger" => "pn-metric-card--danger",
+        _ => ""
+    };
+
+    private string TrendClass => TrendUp
+        ? "pn-metric-card__trend--up"
+        : "pn-metric-card__trend--down";
+}

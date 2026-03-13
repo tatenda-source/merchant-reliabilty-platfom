@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>MRP.Infrastructure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    <PackageReference Include="Paynow" Version="1.2.0" />
+    <PackageReference Include="Polly" Version="8.4.1" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MRP.Domain\MRP.Domain.csproj" />
+    <ProjectReference Include="..\MRP.Application\MRP.Application.csproj" />
+  </ItemGroup>
+</Project>

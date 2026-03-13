@@ -1,0 +1,40 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.vs/
+.vscode/
+*.userprefs
+
+## Build
+publish/
+out/
+
+## NuGet
+*.nupkg
+**/packages/
+
+## Secrets
+.env
+appsettings.*.local.json
+
+## IDE
+.idea/
+*.swp
+*~
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Docker
+docker-compose.override.yml
+
+## Logs
+logs/
+*.log
+
+## Test Results
+TestResults/
+coverage/

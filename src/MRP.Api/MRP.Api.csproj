@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>MRP.Api</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.2" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="3.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+    <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="8.0.1" />
+    <PackageReference Include="MediatR" Version="12.4.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MRP.Domain\MRP.Domain.csproj" />
+    <ProjectReference Include="..\MRP.Application\MRP.Application.csproj" />
+    <ProjectReference Include="..\MRP.Infrastructure\MRP.Infrastructure.csproj" />
+    <ProjectReference Include="..\MRP.Agents\MRP.Agents.csproj" />
+    <ProjectReference Include="..\MRP.Shared\MRP.Shared.csproj" />
+  </ItemGroup>
+</Project>

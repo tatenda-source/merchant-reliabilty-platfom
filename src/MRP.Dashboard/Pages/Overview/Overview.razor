@@ -1,0 +1,135 @@
+@page "/"
+
+<h1 class="pn-page-title">Platform Overview</h1>
+
+<!-- Metric Cards Row -->
+<div class="pn-grid pn-grid-4" style="margin-bottom: 24px;">
+    <div class="pn-metric-card pn-metric-card--hero">
+        <div class="pn-metric-card__icon" style="background: var(--pn-primary-50); color: var(--pn-primary-500);">
+            &#128737;
+        </div>
+        <div>
+            <span class="pn-metric-card__label">Payment Reliability</span>
+            <div class="pn-metric-card__value pn-mono">97.3%</div>
+            <div class="pn-metric-card__trend pn-metric-card__trend--up">+1.2% vs last week</div>
+        </div>
+    </div>
+
+    <div class="pn-metric-card pn-metric-card--success">
+        <div class="pn-metric-card__icon" style="background: var(--pn-success-light); color: var(--pn-success);">
+            &#8644;
+        </div>
+        <div>
+            <span class="pn-metric-card__label">Transaction Volume</span>
+            <div class="pn-metric-card__value pn-mono">12,847</div>
+            <div class="pn-metric-card__trend pn-metric-card__trend--up">+8.4% this month</div>
+        </div>
+    </div>
+
+    <div class="pn-metric-card">
+        <div class="pn-metric-card__icon" style="background: var(--pn-accent-50); color: var(--pn-accent-500);">
+            &#9962;
+        </div>
+        <div>
+            <span class="pn-metric-card__label">Active Merchants</span>
+            <div class="pn-metric-card__value pn-mono">234</div>
+            <div class="pn-metric-card__trend pn-metric-card__trend--up">+12 this week</div>
+        </div>
+    </div>
+
+    <div class="pn-metric-card pn-metric-card--warning">
+        <div class="pn-metric-card__icon" style="background: var(--pn-warning-light); color: var(--pn-warning);">
+            &#9888;
+        </div>
+        <div>
+            <span class="pn-metric-card__label">Anomalies Detected</span>
+            <div class="pn-metric-card__value pn-mono">23</div>
+            <div class="pn-metric-card__trend pn-metric-card__trend--down">-5 from yesterday</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="pn-grid pn-grid-73" style="margin-bottom: 24px;">
+    <div class="pn-card">
+        <h3 style="font-size: 1rem; margin-bottom: 16px;">Transaction Volume (30 Days)</h3>
+        <div style="height: 300px; display: flex; align-items: center; justify-content: center; color: var(--pn-gray-400);">
+            [ApexCharts Area Chart - Transaction Volume Over Time]
+        </div>
+    </div>
+
+    <div class="pn-card">
+        <h3 style="font-size: 1rem; margin-bottom: 16px;">Recent Anomalies</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--pn-gray-100);">
+                <div>
+                    <div style="font-size: 0.875rem; font-weight: 500;">Amount Mismatch</div>
+                    <div style="font-size: 0.75rem; color: var(--pn-gray-400);">ShopZw - TXN-482</div>
+                </div>
+                <span class="pn-badge pn-badge-danger">High</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--pn-gray-100);">
+                <div>
+                    <div style="font-size: 0.875rem; font-weight: 500;">Missing Bank Record</div>
+                    <div style="font-size: 0.75rem; color: var(--pn-gray-400);">TechZim - TXN-891</div>
+                </div>
+                <span class="pn-badge pn-badge-warning">Medium</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--pn-gray-100);">
+                <div>
+                    <div style="font-size: 0.875rem; font-weight: 500;">Callback Timeout</div>
+                    <div style="font-size: 0.75rem; color: var(--pn-gray-400);">BuyMore - TXN-1203</div>
+                </div>
+                <span class="pn-badge pn-badge-info">Low</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reliability Gauge & Recovery -->
+<div class="pn-grid pn-grid-2">
+    <div class="pn-card" style="text-align: center;">
+        <h3 style="font-size: 1rem; margin-bottom: 16px;">Reliability Score</h3>
+        <svg viewBox="0 0 200 200" style="width: 200px; height: 200px; margin: 0 auto;">
+            <circle cx="100" cy="100" r="80" fill="none" stroke="var(--pn-gray-200)" stroke-width="12" />
+            <circle cx="100" cy="100" r="80" fill="none" stroke="var(--pn-success)" stroke-width="12"
+                    stroke-dasharray="502.65" stroke-dashoffset="13.57"
+                    stroke-linecap="round" transform="rotate(-90 100 100)" />
+            <text x="100" y="108" text-anchor="middle" font-size="36" font-weight="700"
+                  fill="var(--pn-gray-800)" font-family="'JetBrains Mono', monospace">97.3</text>
+            <text x="100" y="130" text-anchor="middle" font-size="12"
+                  fill="var(--pn-gray-500)">Payment Reliability %</text>
+        </svg>
+    </div>
+
+    <div class="pn-card">
+        <h3 style="font-size: 1rem; margin-bottom: 16px;">Recovery Status</h3>
+        <div class="pn-grid pn-grid-2" style="margin-bottom: 16px;">
+            <div>
+                <div class="pn-metric-card__label">Recovery Rate</div>
+                <div class="pn-mono" style="font-size: 1.5rem; font-weight: 700; color: var(--pn-success);">94.1%</div>
+            </div>
+            <div>
+                <div class="pn-metric-card__label">Revenue Saved</div>
+                <div class="pn-mono" style="font-size: 1.5rem; font-weight: 700; color: var(--pn-gray-800);">$12,450</div>
+            </div>
+        </div>
+        <div class="pn-timeline">
+            <div class="pn-timeline-item">
+                <div class="pn-timeline-item__dot pn-timeline-item__dot--success"></div>
+                <div style="font-size: 0.75rem; color: var(--pn-gray-400);">2 min ago</div>
+                <div style="font-size: 0.875rem;">EcoCash payment recovered - $24.50</div>
+            </div>
+            <div class="pn-timeline-item">
+                <div class="pn-timeline-item__dot pn-timeline-item__dot--success"></div>
+                <div style="font-size: 0.75rem; color: var(--pn-gray-400);">15 min ago</div>
+                <div style="font-size: 0.875rem;">OneMoney retry successful - $150.00</div>
+            </div>
+            <div class="pn-timeline-item">
+                <div class="pn-timeline-item__dot pn-timeline-item__dot--failure"></div>
+                <div style="font-size: 0.75rem; color: var(--pn-gray-400);">1 hr ago</div>
+                <div style="font-size: 0.875rem;">Bank transfer failed - escalated</div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,80 @@
+version: "3.9"
+
+x-common-env: &common-env
+  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=mrp_db;Username=mrp_user;Password=${DB_PASSWORD:-MrpDev2024!}"
+  Paynow__IntegrationId: "${PAYNOW_INTEGRATION_ID}"
+  Paynow__IntegrationKey: "${PAYNOW_INTEGRATION_KEY}"
+  Paynow__ResultUrl: "${PAYNOW_RESULT_URL:-http://localhost:8080/api/webhooks/paynow}"
+  ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Development}"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mrp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mrp_db
+      POSTGRES_USER: mrp_user
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-MrpDev2024!}"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mrp_user -d mrp_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - mrp-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mrp-api
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - mrp-net
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: src/MRP.Dashboard/MRP.Dashboard.csproj
+    container_name: mrp-dashboard
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      ApiBaseUrl: "http://api:8080"
+    ports:
+      - "8081:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - mrp-net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  mrp-net:
+    driver: bridge
