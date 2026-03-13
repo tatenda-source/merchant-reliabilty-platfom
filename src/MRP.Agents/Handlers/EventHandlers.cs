@@ -29,12 +29,16 @@ public class TransactionReceivedHandler : INotificationHandler<EventNotification
         _logger.LogDebug("Handling TransactionReceived: {TransactionId} for merchant {MerchantId}",
             e.TransactionId, e.MerchantId);
 
-        // Fire-and-forget in a new scope to avoid blocking the caller
+        // Fire-and-forget in a new scope to avoid blocking the caller.
+        // Settlement prediction runs first (may publish SettlementRiskDetected),
+        // then behaviour analysis (may adjust reliability score).
         _ = Task.Run(async () =>
         {
             using var scope = _scopeFactory.CreateScope();
             var intelligence = scope.ServiceProvider.GetRequiredService<IIntelligenceEngine>();
 
+            // Phase 1: Settlement prediction (must complete before behaviour analysis
+            // so risk events are published with pre-adjustment reliability scores)
             try
             {
                 await intelligence.PredictSettlementRiskAsync(e.TransactionId, ct);
@@ -44,6 +48,7 @@ public class TransactionReceivedHandler : INotificationHandler<EventNotification
                 _logger.LogWarning(ex, "Settlement prediction failed for tx {TransactionId}", e.TransactionId);
             }
 
+            // Phase 2: Behaviour analysis (may adjust merchant reliability score)
             try
             {
                 await intelligence.AnalyseMerchantBehaviourAsync(e.MerchantId, ct);
@@ -84,11 +89,13 @@ public class AnomalyDetectedHandler : INotificationHandler<EventNotification<Ano
 
         if (_channel.Writer.TryWrite(item))
         {
+            _channel.RecordEnqueued();
             _logger.LogDebug("Enqueued recovery for anomaly {AnomalyId} (severity={Severity})",
                 e.AnomalyId, e.Severity);
         }
         else
         {
+            _channel.RecordDropped();
             _logger.LogWarning("Recovery channel full — dropped anomaly {AnomalyId}. Consider scaling.", e.AnomalyId);
         }
     }

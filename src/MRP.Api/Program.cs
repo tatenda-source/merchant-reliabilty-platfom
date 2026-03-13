@@ -47,6 +47,8 @@ builder.Services.AddScoped<IIntelligenceEngine, IntelligenceEngine>();
 builder.Services.AddScoped<IRecoveryEngine, RecoveryEngine>();
 
 // Recovery background channel (bounded, backpressure-aware)
+builder.Services.Configure<RecoveryOptions>(
+    builder.Configuration.GetSection("Recovery"));
 builder.Services.AddSingleton<RecoveryChannel>();
 builder.Services.AddHostedService<RecoveryWorker>();
 

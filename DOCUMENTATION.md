@@ -197,9 +197,16 @@ On success, marks anomaly as resolved. Publishes `RecoveryCompleted`.
 
 Recovery is **fully decoupled** from MediatR event handling via a bounded `System.Threading.Channels.Channel<T>`:
 
-- **`RecoveryChannel`** — singleton bounded channel (capacity 500, `DropOldest` overflow, single-reader/multi-writer)
-- **`RecoveryWorker`** — `BackgroundService` that drains the channel with `SemaphoreSlim`-bounded concurrency (max 3 parallel recoveries)
+- **`RecoveryChannel`** — singleton bounded channel (`DropOldest` overflow, single-reader/multi-writer). Tracks enqueued, dropped, processed, and failed counters (thread-safe via `Interlocked`)
+- **`RecoveryWorker`** — `BackgroundService` that drains the channel with `SemaphoreSlim`-bounded concurrency
 - **`AnomalyDetectedHandler`** writes to the channel instead of calling `RecoveryEngine` directly — prevents blocking the MediatR dispatch thread
+
+**Configuration** (via `appsettings.json` → `Recovery` section):
+
+| Setting | Default | Range | Description |
+|---|---|---|---|
+| `ChannelCapacity` | 500 | 10–10,000 | Max items in the recovery channel before DropOldest kicks in |
+| `MaxConcurrency` | 3 | 1–20 | Max parallel recovery operations in the worker |
 
 ```
 AnomalyDetected event
@@ -221,7 +228,7 @@ Only **high** and **critical** severity anomalies are auto-enqueued. If the chan
 
 | Handler | Trigger | Action |
 |---|---|---|
-| `TransactionReceivedHandler` | `TransactionReceived` | Triggers settlement risk prediction + merchant behaviour analysis (fire-and-forget in new scope) |
+| `TransactionReceivedHandler` | `TransactionReceived` | Triggers settlement risk prediction → then behaviour analysis (sequenced, fire-and-forget in new scope) |
 | `AnomalyDetectedHandler` | `AnomalyDetected` | Enqueues high/critical anomalies into `RecoveryChannel` (non-blocking) |
 
 ### Pipeline Coordination
@@ -336,7 +343,7 @@ MediatR-based in-process pub/sub. Events are wrapped in `EventNotification<T> : 
 | Method | Path | Description |
 |---|---|---|
 | GET | `/metrics` | System KPIs: reliability score, transaction counts, recovery rate, active merchants |
-| GET | `/pipelines/status` | Pipeline health: unresolved anomalies, high-risk settlements/merchants, recovery success rate |
+| GET | `/pipelines/status` | Pipeline health: unresolved anomalies, high-risk settlements/merchants, recovery success rate, channel metrics (enqueued/dropped/processed/failed + drop rate), strategy success trends (90-day) |
 
 ### Merchants (`/api/merchants`)
 
@@ -436,9 +443,18 @@ MediatR-based in-process pub/sub. Events are wrapped in `EventNotification<T> : 
 
 ### Integration Tests (`tests/MRP.Tests.Integration`)
 
-Placeholder for API integration tests using:
-- `Microsoft.AspNetCore.Mvc.Testing`
-- `Testcontainers.PostgreSql`
+**RecoveryChannelTests** (in-process, no database required):
+- Channel accepts items up to capacity
+- Channel drops oldest when full (backpressure behaviour)
+- Channel reader receives written items correctly
+- Metrics track all counters (enqueued, dropped, processed, failed)
+- Metrics are thread-safe under concurrent access (1000 parallel increments)
+- Channel capacity is clamped to valid range (10–10,000)
+- Stress test: 10 producers × 50 items with capacity 100, verifies throughput
+
+**Infrastructure** (available for future full-stack tests):
+- `Microsoft.AspNetCore.Mvc.Testing` for API endpoint tests
+- `Testcontainers.PostgreSql` for real database integration
 
 ---
 
@@ -500,7 +516,8 @@ Multi-stage build:
 | DTOs | 16 |
 | Domain Events | 8 |
 | Unit Test Classes | 2 |
-| Unit Tests | 10 |
+| Integration Test Classes | 1 |
+| Total Tests | 17 (10 unit + 7 integration) |
 | Payment Methods | 7 |
 | Anomaly Types | 9 |
 | Recovery Strategies | 6 |

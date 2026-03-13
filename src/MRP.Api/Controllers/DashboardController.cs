@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MRP.Agents.Recovery;
 using MRP.Application.DTOs;
 using MRP.Domain.Enums;
 using MRP.Infrastructure.Persistence;
@@ -11,8 +12,13 @@ namespace MRP.Api.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly MrpDbContext _db;
+    private readonly RecoveryChannel _recoveryChannel;
 
-    public DashboardController(MrpDbContext db) => _db = db;
+    public DashboardController(MrpDbContext db, RecoveryChannel recoveryChannel)
+    {
+        _db = db;
+        _recoveryChannel = recoveryChannel;
+    }
 
     [HttpGet("metrics")]
     public async Task<ActionResult<DashboardMetricsDto>> GetMetrics(CancellationToken ct)
@@ -59,6 +65,22 @@ public class DashboardController : ControllerBase
         var highRiskSettlements = await _db.Settlements.CountAsync(s => s.RiskScore >= 70 && s.ActualSettlementTime == null, ct);
         var highRiskMerchants = await _db.MerchantProfiles.CountAsync(m => m.BehaviourRiskScore >= 50, ct);
 
+        var channelMetrics = _recoveryChannel.GetMetrics();
+
+        // Strategy success rates (last 90 days)
+        var cutoff = DateTime.UtcNow.AddDays(-90);
+        var strategyStats = await _db.RecoveryAttempts
+            .Where(r => r.AttemptedAt >= cutoff)
+            .GroupBy(r => r.Strategy)
+            .Select(g => new
+            {
+                Strategy = g.Key.ToString(),
+                Total = g.Count(),
+                Successful = g.Count(r => r.IsSuccessful),
+                AvgConfidence = g.Average(r => r.ConfidenceScore)
+            })
+            .ToListAsync(ct);
+
         return Ok(new
         {
             ingestion = new { status = "Active" },
@@ -74,7 +96,24 @@ public class DashboardController : ControllerBase
                 status = "Active",
                 totalAttempts = totalRecoveries,
                 successRate = totalRecoveries > 0
-                    ? Math.Round((decimal)successfulRecoveries / totalRecoveries * 100, 1) : 0m
+                    ? Math.Round((decimal)successfulRecoveries / totalRecoveries * 100, 1) : 0m,
+                channel = new
+                {
+                    channelMetrics.Enqueued,
+                    channelMetrics.Dropped,
+                    channelMetrics.Processed,
+                    channelMetrics.Failed,
+                    dropRate = channelMetrics.Enqueued > 0
+                        ? Math.Round((decimal)channelMetrics.Dropped / channelMetrics.Enqueued * 100, 1) : 0m
+                },
+                strategyTrends = strategyStats.Select(s => new
+                {
+                    s.Strategy,
+                    s.Total,
+                    s.Successful,
+                    SuccessRate = s.Total > 0 ? Math.Round((decimal)s.Successful / s.Total * 100, 1) : 0m,
+                    AvgConfidence = Math.Round((decimal)s.AvgConfidence, 1)
+                })
             }
         });
     }
