@@ -46,7 +46,10 @@ public class RecoveryEngine : IRecoveryEngine
         var previousAttempts = anomaly.RecoveryAttempts?.ToList()
             ?? await _recoveryRepo.GetAttemptsByAnomalyAsync(anomalyId, ct);
 
-        var (strategy, confidence, reason) = DecideStrategy(anomaly, merchant, previousAttempts);
+        // Fetch historical success rates for dynamic strategy ranking
+        var successRates = await _recoveryRepo.GetStrategySuccessRatesAsync(anomaly.Type, ct);
+
+        var (strategy, confidence, reason) = DecideStrategy(anomaly, merchant, previousAttempts, successRates);
 
         var attempt = new RecoveryAttempt
         {
@@ -87,12 +90,13 @@ public class RecoveryEngine : IRecoveryEngine
     }
 
     private static (RecoveryStrategy Strategy, decimal Confidence, string Reason) DecideStrategy(
-        Anomaly anomaly, Merchant? merchant, List<RecoveryAttempt> previousAttempts)
+        Anomaly anomaly, Merchant? merchant, List<RecoveryAttempt> previousAttempts,
+        Dictionary<RecoveryStrategy, decimal> successRates)
     {
         var candidates = StrategyMap.GetValueOrDefault(anomaly.Type,
             [RecoveryStrategy.ManualEscalation]);
 
-        // Filter out strategies that already failed
+        // Filter out strategies that already failed for this anomaly
         var failedStrategies = previousAttempts
             .Where(a => !a.IsSuccessful)
             .Select(a => a.Strategy)
@@ -106,21 +110,38 @@ public class RecoveryEngine : IRecoveryEngine
                 "All automated strategies exhausted; escalating to manual review");
         }
 
+        // Dynamic ranking: reorder by historical success rate when data is available
+        if (successRates.Count > 0)
+        {
+            available = available
+                .OrderByDescending(s => successRates.GetValueOrDefault(s, 50m))
+                .ToList();
+        }
+
         var strategy = available[0];
         var reliability = merchant?.ReliabilityScore ?? 50m;
 
-        // Higher confidence when merchant is reliable and anomaly is well-understood
+        // Confidence scoring
         var confidence = 50m;
         confidence += reliability * 0.2m;
         if (anomaly.Severity == "low") confidence += 15;
         else if (anomaly.Severity == "medium") confidence += 5;
         else if (anomaly.Severity == "critical") confidence -= 10;
         if (previousAttempts.Count > 0) confidence -= previousAttempts.Count * 8;
+
+        // Boost confidence if historical data supports this strategy
+        if (successRates.TryGetValue(strategy, out var historicalRate))
+        {
+            confidence += (historicalRate - 50) * 0.2m; // +/- up to 10 points
+        }
+
         confidence = Math.Clamp(confidence, 10, 95);
 
+        var historicalNote = successRates.TryGetValue(strategy, out var rate)
+            ? $", historical={rate:F0}%" : "";
         var reason = $"Selected {strategy} for {anomaly.Type} " +
                      $"(severity={anomaly.Severity}, reliability={reliability:F0}, " +
-                     $"attempt #{previousAttempts.Count + 1})";
+                     $"attempt #{previousAttempts.Count + 1}{historicalNote})";
 
         return (strategy, confidence, reason);
     }
@@ -152,7 +173,6 @@ public class RecoveryEngine : IRecoveryEngine
     {
         if (anomaly.TransactionId is null) return false;
 
-        // For callback failures / status mismatches, flag for re-polling
         if (anomaly.Type is AnomalyType.CallbackFailure or AnomalyType.StatusMismatch)
         {
             _logger.LogInformation("Auto-retry queued for anomaly {AnomalyId}, type={Type}",

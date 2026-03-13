@@ -14,6 +14,7 @@ public interface IIngestionService
 public interface IIntelligenceEngine
 {
     Task<ReconciliationReport> ReconcileAsync(Guid merchantId, DateTime periodStart, DateTime periodEnd, CancellationToken ct);
+    Task<List<ReconciliationReport>> ReconcileBatchAsync(IEnumerable<Guid> merchantIds, DateTime periodStart, DateTime periodEnd, int maxParallelism, CancellationToken ct);
     Task AnalyseMerchantBehaviourAsync(Guid merchantId, CancellationToken ct);
     Task PredictSettlementRiskAsync(Guid transactionId, CancellationToken ct);
 }

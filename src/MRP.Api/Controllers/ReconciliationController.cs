@@ -48,6 +48,20 @@ public class ReconciliationController : ControllerBase
         return Ok(MapToDto(report));
     }
 
+    [HttpPost("trigger/batch")]
+    public async Task<ActionResult<List<ReconciliationReportDto>>> TriggerBatchReconciliation(
+        [FromBody] BatchReconciliationRequest request, CancellationToken ct)
+    {
+        var periodStart = request.PeriodStart ?? DateTime.UtcNow.AddDays(-1);
+        var periodEnd = request.PeriodEnd ?? DateTime.UtcNow;
+
+        var reports = await _intelligence.ReconcileBatchAsync(
+            request.MerchantIds, periodStart, periodEnd,
+            request.MaxParallelism ?? 4, ct);
+
+        return Ok(reports.Select(MapToDto).ToList());
+    }
+
     private static ReconciliationReportDto MapToDto(ReconciliationReport r) => new(
         r.Id, r.MerchantId, r.PeriodStart, r.PeriodEnd, r.GeneratedAt,
         r.TotalTransactions, r.MatchedCount, r.UnmatchedCount, r.AnomalyCount,

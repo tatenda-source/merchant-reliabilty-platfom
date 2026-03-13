@@ -83,6 +83,36 @@ public class IntelligenceEngine : IIntelligenceEngine
         return result.Report;
     }
 
+    public async Task<List<ReconciliationReport>> ReconcileBatchAsync(
+        IEnumerable<Guid> merchantIds, DateTime periodStart, DateTime periodEnd,
+        int maxParallelism, CancellationToken ct)
+    {
+        var ids = merchantIds.ToList();
+        var results = new List<ReconciliationReport>();
+        using var semaphore = new SemaphoreSlim(Math.Clamp(maxParallelism, 1, 10));
+
+        var tasks = ids.Select(async merchantId =>
+        {
+            await semaphore.WaitAsync(ct);
+            try
+            {
+                return await ReconcileAsync(merchantId, periodStart, periodEnd, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Batch reconciliation failed for merchant {MerchantId}", merchantId);
+                return null;
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        var reports = await Task.WhenAll(tasks);
+        return reports.Where(r => r is not null).ToList()!;
+    }
+
     // --- Merchant Behaviour Analysis ---
 
     public async Task AnalyseMerchantBehaviourAsync(Guid merchantId, CancellationToken ct)

@@ -36,6 +36,7 @@ public interface IRecoveryRepository
     Task<List<RecoveryAttempt>> GetAttemptsByAnomalyAsync(Guid anomalyId, CancellationToken ct);
     Task AddAnomalyAsync(Anomaly anomaly, CancellationToken ct);
     Task UpdateAnomalyAsync(Anomaly anomaly, CancellationToken ct);
+    Task<Dictionary<RecoveryStrategy, decimal>> GetStrategySuccessRatesAsync(AnomalyType anomalyType, CancellationToken ct);
 }
 
 public interface ISettlementRepository

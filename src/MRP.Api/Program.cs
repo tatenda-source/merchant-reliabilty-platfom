@@ -46,6 +46,10 @@ builder.Services.AddScoped<IIngestionService, IngestionService>();
 builder.Services.AddScoped<IIntelligenceEngine, IntelligenceEngine>();
 builder.Services.AddScoped<IRecoveryEngine, RecoveryEngine>();
 
+// Recovery background channel (bounded, backpressure-aware)
+builder.Services.AddSingleton<RecoveryChannel>();
+builder.Services.AddHostedService<RecoveryWorker>();
+
 // API
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

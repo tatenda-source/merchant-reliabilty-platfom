@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MRP.Domain.Entities;
+using MRP.Domain.Enums;
 using MRP.Domain.Interfaces;
 
 namespace MRP.Infrastructure.Persistence.Repositories;
@@ -49,5 +50,28 @@ public class RecoveryRepository : IRecoveryRepository
     {
         _db.Anomalies.Update(anomaly);
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<Dictionary<RecoveryStrategy, decimal>> GetStrategySuccessRatesAsync(
+        AnomalyType anomalyType, CancellationToken ct)
+    {
+        // Get attempts for anomalies of this type (last 90 days)
+        var cutoff = DateTime.UtcNow.AddDays(-90);
+        var attempts = await _db.RecoveryAttempts
+            .Where(r => r.Anomaly.Type == anomalyType && r.AttemptedAt >= cutoff)
+            .GroupBy(r => r.Strategy)
+            .Select(g => new
+            {
+                Strategy = g.Key,
+                Total = g.Count(),
+                Successful = g.Count(r => r.IsSuccessful)
+            })
+            .ToListAsync(ct);
+
+        return attempts
+            .Where(a => a.Total >= 3) // Need at least 3 samples for a meaningful rate
+            .ToDictionary(
+                a => a.Strategy,
+                a => (decimal)a.Successful / a.Total * 100);
     }
 }

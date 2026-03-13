@@ -137,3 +137,4 @@ public record RecoveryIntelligenceStatsDto(
 // Intelligence request DTOs
 public record TriggerSettlementAnalysisRequest(Guid MerchantId);
 public record TriggerBehaviourAnalysisRequest(Guid MerchantId);
+public record BatchReconciliationRequest(List<Guid> MerchantIds, DateTime? PeriodStart, DateTime? PeriodEnd, int? MaxParallelism);
