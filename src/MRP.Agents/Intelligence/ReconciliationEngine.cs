@@ -22,15 +22,21 @@ public class ReconciliationEngine
             GeneratedAt = DateTime.UtcNow
         };
 
+        // Use PaynowReference as canonical key. For merchant records, prefer
+        // PaynowReference when set, falling back to MerchantReference.
+        // Keep ALL transactions per reference (not just first) to handle duplicates.
         var paynowByRef = paynowRecords
+            .Where(t => !string.IsNullOrEmpty(t.PaynowReference))
             .GroupBy(t => t.PaynowReference)
-            .ToDictionary(g => g.Key, g => g.First());
+            .ToDictionary(g => g.Key, g => g.ToList());
         var merchantByRef = merchantRecords
-            .GroupBy(t => t.MerchantReference)
-            .ToDictionary(g => g.Key, g => g.First());
+            .GroupBy(t => !string.IsNullOrEmpty(t.PaynowReference) ? t.PaynowReference : t.MerchantReference)
+            .Where(g => !string.IsNullOrEmpty(g.Key))
+            .ToDictionary(g => g.Key, g => g.ToList());
         var bankByRef = bankRecords
+            .Where(t => !string.IsNullOrEmpty(t.PaynowReference))
             .GroupBy(t => t.PaynowReference)
-            .ToDictionary(g => g.Key, g => g.First());
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         var allRefs = paynowByRef.Keys
             .Union(merchantByRef.Keys)
@@ -45,9 +51,29 @@ public class ReconciliationEngine
 
         foreach (var reference in allRefs)
         {
-            paynowByRef.TryGetValue(reference, out var pnTx);
-            merchantByRef.TryGetValue(reference, out var mTx);
-            bankByRef.TryGetValue(reference, out var bkTx);
+            paynowByRef.TryGetValue(reference, out var pnList);
+            merchantByRef.TryGetValue(reference, out var mList);
+            bankByRef.TryGetValue(reference, out var bkList);
+
+            // Use the first transaction from each source for anomaly detection
+            var pnTx = pnList?.FirstOrDefault();
+            var mTx = mList?.FirstOrDefault();
+            var bkTx = bkList?.FirstOrDefault();
+
+            // Flag duplicate transactions within the same source
+            if (pnList is { Count: > 1 })
+            {
+                anomalies.Add(new Anomaly
+                {
+                    Id = Guid.NewGuid(), MerchantId = merchantId,
+                    ReconciliationReportId = report.Id,
+                    TransactionId = pnList[1].Id,
+                    Type = AnomalyType.DuplicateTransaction,
+                    Description = $"Duplicate Paynow records ({pnList.Count}) for reference {reference}",
+                    Severity = "medium", DetectedAt = DateTime.UtcNow,
+                    Amount = pnList.Skip(1).Sum(t => t.Amount)
+                });
+            }
 
             var refAnomalies = DetectAnomalies(merchantId, report.Id, reference, pnTx, mTx, bkTx);
 

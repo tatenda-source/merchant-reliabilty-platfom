@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MRP.Domain.Entities;
 using MRP.Domain.Enums;
@@ -16,6 +17,7 @@ public class IntelligenceEngine : IIntelligenceEngine
     private readonly ISettlementRepository _settlementRepo;
     private readonly IMerchantProfileRepository _profileRepo;
     private readonly IEventBus _eventBus;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<IntelligenceEngine> _logger;
 
     private readonly ReconciliationEngine _reconEngine = new();
@@ -33,12 +35,12 @@ public class IntelligenceEngine : IIntelligenceEngine
         ITransactionRepository txRepo, IMerchantRepository merchantRepo,
         IReconciliationRepository reconRepo, IRecoveryRepository recoveryRepo,
         ISettlementRepository settlementRepo, IMerchantProfileRepository profileRepo,
-        IEventBus eventBus, ILogger<IntelligenceEngine> logger)
+        IEventBus eventBus, IServiceScopeFactory scopeFactory, ILogger<IntelligenceEngine> logger)
     {
         _txRepo = txRepo; _merchantRepo = merchantRepo;
         _reconRepo = reconRepo; _recoveryRepo = recoveryRepo;
         _settlementRepo = settlementRepo; _profileRepo = profileRepo;
-        _eventBus = eventBus; _logger = logger;
+        _eventBus = eventBus; _scopeFactory = scopeFactory; _logger = logger;
     }
 
     // --- Reconciliation Pipeline ---
@@ -88,15 +90,18 @@ public class IntelligenceEngine : IIntelligenceEngine
         int maxParallelism, CancellationToken ct)
     {
         var ids = merchantIds.ToList();
-        var results = new List<ReconciliationReport>();
         using var semaphore = new SemaphoreSlim(Math.Clamp(maxParallelism, 1, 10));
 
+        // Each merchant reconciliation runs in its own DI scope to avoid sharing
+        // a single DbContext across parallel tasks (DbContext is not thread-safe).
         var tasks = ids.Select(async merchantId =>
         {
             await semaphore.WaitAsync(ct);
             try
             {
-                return await ReconcileAsync(merchantId, periodStart, periodEnd, ct);
+                using var scope = _scopeFactory.CreateScope();
+                var engine = scope.ServiceProvider.GetRequiredService<IIntelligenceEngine>();
+                return await engine.ReconcileAsync(merchantId, periodStart, periodEnd, ct);
             }
             catch (Exception ex)
             {

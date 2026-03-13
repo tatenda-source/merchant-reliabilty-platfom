@@ -12,6 +12,7 @@ public class IngestionService : IIngestionService
     private readonly IMerchantRepository _merchantRepo;
     private readonly IPaynowGateway _paynow;
     private readonly IEventBus _eventBus;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<IngestionService> _logger;
 
     public IngestionService(
@@ -19,12 +20,14 @@ public class IngestionService : IIngestionService
         IMerchantRepository merchantRepo,
         IPaynowGateway paynow,
         IEventBus eventBus,
+        IHttpClientFactory httpClientFactory,
         ILogger<IngestionService> logger)
     {
         _txRepo = txRepo;
         _merchantRepo = merchantRepo;
         _paynow = paynow;
         _eventBus = eventBus;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
     }
 
@@ -105,11 +108,11 @@ public class IngestionService : IIngestionService
             || resultUri.Scheme != "https")
             issues.Add("Result URL must be a valid HTTPS URL");
 
-        // Test callback reachability
+        // Test callback reachability (IHttpClientFactory avoids socket exhaustion)
         bool callbackReachable = false;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            using var http = _httpClientFactory.CreateClient("CallbackTest");
             var response = await http.GetAsync(integration.ResultUrl, ct);
             callbackReachable = response.IsSuccessStatusCode
                 || response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed;
@@ -157,6 +160,10 @@ public class IngestionService : IIngestionService
         _logger.LogInformation("Validated merchant {MerchantId}: score={Score}, issues={Issues}",
             merchantId, score, issues.Count);
 
-        await _eventBus.PublishAsync(new MerchantCreated(merchantId), ct);
+        // Only publish MerchantCreated when validation succeeds
+        if (issues.Count == 0)
+        {
+            await _eventBus.PublishAsync(new MerchantCreated(merchantId), ct);
+        }
     }
 }

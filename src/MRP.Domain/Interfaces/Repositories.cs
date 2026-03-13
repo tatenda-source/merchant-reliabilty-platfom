@@ -30,7 +30,8 @@ public interface IReconciliationRepository
 
 public interface IRecoveryRepository
 {
-    Task<List<Anomaly>> GetUnresolvedAnomaliesAsync(CancellationToken ct);
+    Task<List<Anomaly>> GetUnresolvedAnomaliesAsync(int page, int pageSize, CancellationToken ct);
+    Task<object> GetUnresolvedStatsAsync(CancellationToken ct);
     Task<Anomaly?> GetAnomalyByIdAsync(Guid id, CancellationToken ct);
     Task<RecoveryAttempt> AddAttemptAsync(RecoveryAttempt attempt, CancellationToken ct);
     Task<List<RecoveryAttempt>> GetAttemptsByAnomalyAsync(Guid anomalyId, CancellationToken ct);

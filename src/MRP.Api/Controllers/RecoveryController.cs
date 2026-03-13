@@ -18,9 +18,13 @@ public class RecoveryController : ControllerBase
     }
 
     [HttpGet("queue")]
-    public async Task<ActionResult<List<AnomalyDto>>> GetQueue(CancellationToken ct)
+    public async Task<ActionResult<List<AnomalyDto>>> GetQueue(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
     {
-        var anomalies = await _recoveryRepo.GetUnresolvedAnomaliesAsync(ct);
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 200);
+
+        var anomalies = await _recoveryRepo.GetUnresolvedAnomaliesAsync(page, pageSize, ct);
         return Ok(anomalies.Select(a => new AnomalyDto(
             a.Id, a.Type.ToString(), a.Description, a.Severity,
             a.IsResolved, a.DetectedAt, a.ResolvedAt)).ToList());
@@ -41,6 +45,9 @@ public class RecoveryController : ControllerBase
     public async Task<ActionResult<RecoveryAttemptDto>> InitiateRecovery(
         [FromBody] InitiateRecoveryRequest request, CancellationToken ct)
     {
+        if (request.AnomalyId == Guid.Empty)
+            return BadRequest(new { error = "AnomalyId is required" });
+
         var attempt = await _recovery.RecoverAsync(request.AnomalyId, ct);
 
         return Ok(new RecoveryAttemptDto(
@@ -53,14 +60,7 @@ public class RecoveryController : ControllerBase
     [HttpGet("stats")]
     public async Task<ActionResult> GetStats(CancellationToken ct)
     {
-        var unresolved = await _recoveryRepo.GetUnresolvedAnomaliesAsync(ct);
-        return Ok(new
-        {
-            queueSize = unresolved.Count,
-            criticalCount = unresolved.Count(a => a.Severity == "critical"),
-            highCount = unresolved.Count(a => a.Severity == "high"),
-            mediumCount = unresolved.Count(a => a.Severity == "medium"),
-            lowCount = unresolved.Count(a => a.Severity == "low")
-        });
+        var stats = await _recoveryRepo.GetUnresolvedStatsAsync(ct);
+        return Ok(stats);
     }
 }

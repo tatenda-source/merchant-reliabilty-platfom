@@ -1,7 +1,7 @@
 version: "3.9"
 
 x-common-env: &common-env
-  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=mrp_db;Username=mrp_user;Password=${DB_PASSWORD:-MrpDev2024!}"
+  ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=mrp_db;Username=mrp_user;Password=${DB_PASSWORD}"
   Paynow__IntegrationId: "${PAYNOW_INTEGRATION_ID}"
   Paynow__IntegrationKey: "${PAYNOW_INTEGRATION_KEY}"
   Paynow__ResultUrl: "${PAYNOW_RESULT_URL:-http://localhost:8080/api/webhooks/paynow}"
@@ -15,9 +15,7 @@ services:
     environment:
       POSTGRES_DB: mrp_db
       POSTGRES_USER: mrp_user
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-MrpDev2024!}"
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/seed-data.sql:/docker-entrypoint-initdb.d/01-seed.sql:ro
@@ -27,6 +25,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - mrp-net
 
@@ -34,6 +36,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PROJECT: src/MRP.Api/MRP.Api.csproj
     container_name: mrp-api
     restart: unless-stopped
     environment:
@@ -49,6 +53,10 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     networks:
       - mrp-net
 
@@ -58,6 +66,7 @@ services:
       dockerfile: Dockerfile
       args:
         PROJECT: src/MRP.Dashboard/MRP.Dashboard.csproj
+        ASSEMBLY_NAME: MRP.Dashboard
     container_name: mrp-dashboard
     restart: unless-stopped
     environment:
@@ -68,6 +77,16 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - mrp-net
 

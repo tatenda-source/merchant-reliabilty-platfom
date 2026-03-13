@@ -38,7 +38,9 @@ public sealed class RecoveryChannel
         var capacity = Math.Clamp(options.Value.ChannelCapacity, 10, 10_000);
         _channel = Channel.CreateBounded<RecoveryWorkItem>(new BoundedChannelOptions(capacity)
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
+            // DropWrite instead of DropOldest: TryWrite returns false when full,
+            // so RecordDropped() actually fires and we get accurate drop metrics.
+            FullMode = BoundedChannelFullMode.DropWrite,
             SingleReader = true,
             SingleWriter = false
         });
@@ -88,36 +90,64 @@ public sealed class RecoveryWorker : BackgroundService
     {
         _logger.LogInformation("RecoveryWorker started, max concurrency={MaxConcurrency}", _maxConcurrency);
 
-        using var semaphore = new SemaphoreSlim(_maxConcurrency);
+        var semaphore = new SemaphoreSlim(_maxConcurrency);
+        var inFlightTasks = new List<Task>();
 
-        await foreach (var item in _channel.Reader.ReadAllAsync(stoppingToken))
+        try
         {
-            await semaphore.WaitAsync(stoppingToken);
-
-            _ = Task.Run(async () =>
+            await foreach (var item in _channel.Reader.ReadAllAsync(stoppingToken))
             {
-                try
-                {
-                    var lag = DateTime.UtcNow - item.EnqueuedAt;
-                    _logger.LogDebug("Recovery item lag: {LagMs}ms for anomaly {AnomalyId}",
-                        lag.TotalMilliseconds, item.AnomalyId);
+                await semaphore.WaitAsync(stoppingToken);
 
-                    using var scope = _scopeFactory.CreateScope();
-                    var recovery = scope.ServiceProvider.GetRequiredService<IRecoveryEngine>();
-                    await recovery.RecoverAsync(item.AnomalyId, stoppingToken);
+                // Don't pass stoppingToken to Task.Run — let in-flight work finish gracefully
+                var task = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var lag = DateTime.UtcNow - item.EnqueuedAt;
+                        _logger.LogDebug("Recovery item lag: {LagMs}ms for anomaly {AnomalyId}",
+                            lag.TotalMilliseconds, item.AnomalyId);
 
-                    _channel.RecordProcessed();
-                }
-                catch (Exception ex)
-                {
-                    _channel.RecordFailed();
-                    _logger.LogWarning(ex, "Recovery failed for anomaly {AnomalyId}", item.AnomalyId);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }, stoppingToken);
+                        using var scope = _scopeFactory.CreateScope();
+                        var recovery = scope.ServiceProvider.GetRequiredService<IRecoveryEngine>();
+                        await recovery.RecoverAsync(item.AnomalyId, CancellationToken.None);
+
+                        _channel.RecordProcessed();
+                    }
+                    catch (Exception ex)
+                    {
+                        _channel.RecordFailed();
+                        _logger.LogWarning(ex, "Recovery failed for anomaly {AnomalyId}", item.AnomalyId);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                });
+
+                // Track in-flight tasks, pruning completed ones
+                inFlightTasks.RemoveAll(t => t.IsCompleted);
+                inFlightTasks.Add(task);
+            }
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Graceful shutdown: wait for in-flight recovery operations to complete
+            _logger.LogInformation("RecoveryWorker shutting down, waiting for {Count} in-flight tasks", inFlightTasks.Count);
+        }
+
+        // Wait for all in-flight tasks with a timeout
+        if (inFlightTasks.Count > 0)
+        {
+            var drainTask = Task.WhenAll(inFlightTasks);
+            if (await Task.WhenAny(drainTask, Task.Delay(TimeSpan.FromSeconds(30))) != drainTask)
+            {
+                _logger.LogWarning("RecoveryWorker drain timeout — {Count} tasks still running",
+                    inFlightTasks.Count(t => !t.IsCompleted));
+            }
+        }
+
+        semaphore.Dispose();
+        _logger.LogInformation("RecoveryWorker stopped");
     }
 }

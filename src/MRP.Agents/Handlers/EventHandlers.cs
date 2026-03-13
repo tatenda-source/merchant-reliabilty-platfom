@@ -30,34 +30,41 @@ public class TransactionReceivedHandler : INotificationHandler<EventNotification
             e.TransactionId, e.MerchantId);
 
         // Fire-and-forget in a new scope to avoid blocking the caller.
-        // Settlement prediction runs first (may publish SettlementRiskDetected),
-        // then behaviour analysis (may adjust reliability score).
+        // Use CancellationToken.None — the HTTP request may complete before this runs,
+        // and we don't want background work cancelled when the request ends.
         _ = Task.Run(async () =>
         {
-            using var scope = _scopeFactory.CreateScope();
-            var intelligence = scope.ServiceProvider.GetRequiredService<IIntelligenceEngine>();
-
-            // Phase 1: Settlement prediction (must complete before behaviour analysis
-            // so risk events are published with pre-adjustment reliability scores)
             try
             {
-                await intelligence.PredictSettlementRiskAsync(e.TransactionId, ct);
+                using var scope = _scopeFactory.CreateScope();
+                var intelligence = scope.ServiceProvider.GetRequiredService<IIntelligenceEngine>();
+
+                // Phase 1: Settlement prediction (must complete before behaviour analysis
+                // so risk events are published with pre-adjustment reliability scores)
+                try
+                {
+                    await intelligence.PredictSettlementRiskAsync(e.TransactionId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Settlement prediction failed for tx {TransactionId}", e.TransactionId);
+                }
+
+                // Phase 2: Behaviour analysis (may adjust merchant reliability score)
+                try
+                {
+                    await intelligence.AnalyseMerchantBehaviourAsync(e.MerchantId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Behaviour analysis failed for merchant {MerchantId}", e.MerchantId);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Settlement prediction failed for tx {TransactionId}", e.TransactionId);
+                _logger.LogError(ex, "Unhandled error in TransactionReceived background processing for tx {TransactionId}", e.TransactionId);
             }
-
-            // Phase 2: Behaviour analysis (may adjust merchant reliability score)
-            try
-            {
-                await intelligence.AnalyseMerchantBehaviourAsync(e.MerchantId, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Behaviour analysis failed for merchant {MerchantId}", e.MerchantId);
-            }
-        }, ct);
+        });
 
         return Task.CompletedTask;
     }

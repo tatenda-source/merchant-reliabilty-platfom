@@ -10,53 +10,40 @@ using Webdev.Payments;
 
 namespace MRP.Infrastructure.Paynow;
 
+/// <summary>
+/// Wraps the Paynow SDK with Polly resilience (retry + circuit breaker).
+/// Registered as SINGLETON so the circuit breaker state is shared across all requests.
+/// </summary>
 public class PaynowGatewayWrapper : IPaynowGateway
 {
     private readonly ILogger<PaynowGatewayWrapper> _logger;
 
-    // Retry: 3 attempts with exponential backoff (1s, 2s, 4s)
-    private readonly AsyncRetryPolicy _retryPolicy;
+    // Static policies so circuit breaker state is shared across all instances
+    private static readonly AsyncRetryPolicy RetryPolicy = Policy
+        .Handle<Exception>(ex => ex is not InvalidOperationException)
+        .WaitAndRetryAsync(
+            retryCount: 3,
+            sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)));
 
-    // Circuit breaker: open after 5 failures in 30s, stay open 60s
-    private readonly AsyncCircuitBreakerPolicy _circuitBreaker;
+    private static readonly AsyncCircuitBreakerPolicy CircuitBreaker = Policy
+        .Handle<Exception>(ex => ex is not InvalidOperationException)
+        .CircuitBreakerAsync(
+            exceptionsAllowedBeforeBreaking: 5,
+            durationOfBreak: TimeSpan.FromSeconds(60));
 
-    // Combined pipeline
-    private readonly AsyncPolicy _resilience;
+    private static readonly AsyncPolicy Resilience = Policy.WrapAsync(RetryPolicy, CircuitBreaker);
 
     public PaynowGatewayWrapper(ILogger<PaynowGatewayWrapper> logger)
     {
         _logger = logger;
-
-        _retryPolicy = Policy
-            .Handle<Exception>(ex => ex is not InvalidOperationException)
-            .WaitAndRetryAsync(
-                retryCount: 3,
-                sleepDurationProvider: attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)),
-                onRetry: (ex, delay, attempt, _) =>
-                    _logger.LogWarning("Paynow retry #{Attempt} after {Delay}ms: {Message}",
-                        attempt, delay.TotalMilliseconds, ex.Message));
-
-        _circuitBreaker = Policy
-            .Handle<Exception>(ex => ex is not InvalidOperationException)
-            .CircuitBreakerAsync(
-                exceptionsAllowedBeforeBreaking: 5,
-                durationOfBreak: TimeSpan.FromSeconds(60),
-                onBreak: (ex, duration) =>
-                    _logger.LogError("Paynow circuit OPEN for {Duration}s: {Message}",
-                        duration.TotalSeconds, ex.Message),
-                onReset: () =>
-                    _logger.LogInformation("Paynow circuit CLOSED — recovered"),
-                onHalfOpen: () =>
-                    _logger.LogInformation("Paynow circuit HALF-OPEN — testing"));
-
-        _resilience = Policy.WrapAsync(_retryPolicy, _circuitBreaker);
     }
 
     public async Task<PaynowStatusResult> PollTransactionAsync(
         MerchantIntegration integration, string pollUrl, CancellationToken ct)
     {
-        return await _resilience.ExecuteAsync(async () =>
+        return await Resilience.ExecuteAsync(async (token) =>
         {
+            token.ThrowIfCancellationRequested();
             var paynow = CreateClient(integration);
             var response = await paynow.PollTransactionAsync(pollUrl);
 
@@ -74,15 +61,16 @@ public class PaynowGatewayWrapper : IPaynowGateway
                     response.Amount,
                     response.WasPaid
                 }));
-        });
+        }, ct);
     }
 
     public async Task<PaynowInitResult> InitiatePaymentAsync(
         MerchantIntegration integration, string reference, decimal amount,
         string customerEmail, CancellationToken ct)
     {
-        return await _resilience.ExecuteAsync(async () =>
+        return await Resilience.ExecuteAsync(async (token) =>
         {
+            token.ThrowIfCancellationRequested();
             var paynow = CreateClient(integration);
             var payment = paynow.CreatePayment(reference, customerEmail);
             payment.Add("Payment", amount);
@@ -95,15 +83,16 @@ public class PaynowGatewayWrapper : IPaynowGateway
                 RedirectUrl: response.RedirectLink(),
                 Instructions: null,
                 Error: response.Errors());
-        });
+        }, ct);
     }
 
     public async Task<PaynowInitResult> InitiateMobilePaymentAsync(
         MerchantIntegration integration, string reference, decimal amount,
         string phone, PaymentMethod method, CancellationToken ct)
     {
-        return await _resilience.ExecuteAsync(async () =>
+        return await Resilience.ExecuteAsync(async (token) =>
         {
+            token.ThrowIfCancellationRequested();
             var paynow = CreateClient(integration);
             var payment = paynow.CreatePayment(reference);
             payment.Add("Payment", amount);
@@ -125,7 +114,7 @@ public class PaynowGatewayWrapper : IPaynowGateway
                 RedirectUrl: null,
                 Instructions: null,
                 Error: response.Errors());
-        });
+        }, ct);
     }
 
     private static Webdev.Payments.Paynow CreateClient(MerchantIntegration integration)

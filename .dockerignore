@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.*
+*.md
+bin/
+obj/
+tests/
+scripts/
+node_modules/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/

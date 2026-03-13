@@ -70,6 +70,7 @@ public class RecoveryAttemptConfiguration : IEntityTypeConfiguration<RecoveryAtt
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(r => r.AnomalyId);
+        builder.HasIndex(r => new { r.Strategy, r.AttemptedAt });
     }
 }
 
@@ -97,6 +98,7 @@ public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
 
         builder.HasIndex(s => new { s.MerchantId, s.CreatedAt });
         builder.HasIndex(s => s.RiskScore);
+        builder.HasIndex(s => s.TransactionId);
     }
 }
 

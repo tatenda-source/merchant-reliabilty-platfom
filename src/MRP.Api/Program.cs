@@ -29,10 +29,13 @@ builder.Services.AddScoped<IRecoveryRepository, RecoveryRepository>();
 builder.Services.AddScoped<ISettlementRepository, SettlementRepository>();
 builder.Services.AddScoped<IMerchantProfileRepository, MerchantProfileRepository>();
 
-// Paynow
+// Paynow — singleton so circuit breaker state is shared across all requests
 builder.Services.Configure<PaynowOptions>(
     builder.Configuration.GetSection("Paynow"));
-builder.Services.AddScoped<IPaynowGateway, PaynowGatewayWrapper>();
+builder.Services.AddSingleton<IPaynowGateway, PaynowGatewayWrapper>();
+
+// HttpClient factory for outbound calls (replaces inline new HttpClient())
+builder.Services.AddHttpClient("CallbackTest", c => c.Timeout = TimeSpan.FromSeconds(10));
 
 // Event Bus (MediatR) — register from both Infrastructure (bus) and Agents (handlers)
 builder.Services.AddMediatR(cfg =>
@@ -55,25 +58,37 @@ builder.Services.AddHostedService<RecoveryWorker>();
 // API
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+if (builder.Environment.IsDevelopment())
 {
-    c.SwaggerDoc("v1", new()
+    builder.Services.AddSwaggerGen(c =>
     {
-        Title = "MRP - Merchant Reliability Platform",
-        Version = "v2",
-        Description = "Event-driven Merchant Reliability Platform for Paynow Zimbabwe"
+        c.SwaggerDoc("v1", new()
+        {
+            Title = "MRP - Merchant Reliability Platform",
+            Version = "v1",
+            Description = "Event-driven Merchant Reliability Platform for Paynow Zimbabwe"
+        });
     });
-});
+}
 
 // Health Checks
-builder.Services.AddHealthChecks()
-    .AddNpgSql(connectionString ?? "", name: "postgresql");
+if (!string.IsNullOrEmpty(connectionString))
+{
+    builder.Services.AddHealthChecks()
+        .AddNpgSql(connectionString, name: "postgresql");
+}
+else
+{
+    builder.Services.AddHealthChecks();
+}
 
-// CORS for Dashboard
+// CORS for Dashboard — configurable via appsettings "Cors:Origins"
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
+    ?? ["http://localhost:8081", "https://localhost:8081"];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Dashboard", policy =>
-        policy.WithOrigins("http://localhost:8081", "https://localhost:8081")
+        policy.WithOrigins(corsOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod());
 });
@@ -98,6 +113,18 @@ if (args.Contains("--migrate"))
 }
 
 app.UseSerilogRequestLogging();
+
+// Security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["X-XSS-Protection"] = "1; mode=block";
+    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
+
+app.UseHttpsRedirection();
 app.UseCors("Dashboard");
 
 if (app.Environment.IsDevelopment())

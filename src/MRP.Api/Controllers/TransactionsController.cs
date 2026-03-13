@@ -11,10 +11,12 @@ namespace MRP.Api.Controllers;
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionRepository _txRepo;
+    private readonly IIngestionService _ingestion;
 
-    public TransactionsController(ITransactionRepository txRepo)
+    public TransactionsController(ITransactionRepository txRepo, IIngestionService ingestion)
     {
         _txRepo = txRepo;
+        _ingestion = ingestion;
     }
 
     [HttpGet]
@@ -24,6 +26,9 @@ public class TransactionsController : ControllerBase
         [FromQuery] DateTime? to,
         CancellationToken ct)
     {
+        if (merchantId == Guid.Empty)
+            return BadRequest(new { error = "merchantId is required" });
+
         var transactions = await _txRepo.GetByMerchantAsync(
             merchantId,
             from ?? DateTime.UtcNow.AddDays(-30),
@@ -42,9 +47,30 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpPost("ingest")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB max
     public async Task<ActionResult> IngestBatch(
         [FromBody] List<IngestTransactionRequest> requests, CancellationToken ct)
     {
+        if (requests is null || requests.Count == 0)
+            return BadRequest(new { error = "Request body must contain at least one transaction" });
+        if (requests.Count > 1000)
+            return BadRequest(new { error = "Maximum 1000 transactions per batch" });
+
+        // Validate each request
+        for (var i = 0; i < requests.Count; i++)
+        {
+            var r = requests[i];
+            if (r.MerchantId == Guid.Empty)
+                return BadRequest(new { error = $"Transaction [{i}]: MerchantId is required" });
+            if (string.IsNullOrWhiteSpace(r.MerchantReference))
+                return BadRequest(new { error = $"Transaction [{i}]: MerchantReference is required" });
+            if (r.Amount <= 0)
+                return BadRequest(new { error = $"Transaction [{i}]: Amount must be positive" });
+            if (string.IsNullOrWhiteSpace(r.Currency))
+                return BadRequest(new { error = $"Transaction [{i}]: Currency is required" });
+        }
+
+        // Route through IngestionService so events are published
         var transactions = requests.Select(r => new Transaction
         {
             Id = Guid.NewGuid(),
@@ -53,15 +79,15 @@ public class TransactionsController : ControllerBase
             MerchantReference = r.MerchantReference,
             Amount = r.Amount,
             Currency = r.Currency,
-            Status = Enum.TryParse<TransactionStatus>(r.Status, out var s)
+            Status = Enum.TryParse<TransactionStatus>(r.Status, true, out var s)
                 ? s : TransactionStatus.Pending,
             Source = SourceType.Merchant,
-            PaymentMethod = Enum.TryParse<PaymentMethod>(r.PaymentMethod, out var pm)
+            PaymentMethod = Enum.TryParse<PaymentMethod>(r.PaymentMethod, true, out var pm)
                 ? pm : PaymentMethod.EcoCash,
             CreatedAt = r.TransactionDate ?? DateTime.UtcNow
         });
 
-        await _txRepo.AddRangeAsync(transactions, ct);
+        await _ingestion.IngestMerchantBatchAsync(transactions, ct);
         return Accepted(new { ingested = requests.Count });
     }
 

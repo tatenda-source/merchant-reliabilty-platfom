@@ -11,6 +11,9 @@ builder.Services.AddHttpClient("MrpApi", client =>
         builder.Configuration["ApiBaseUrl"] ?? "http://localhost:8080");
 });
 
+// Health checks — register before mapping
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

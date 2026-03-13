@@ -23,6 +23,9 @@ public class ReconciliationController : ControllerBase
     public async Task<ActionResult<List<ReconciliationReportDto>>> GetReports(
         [FromQuery] Guid merchantId, CancellationToken ct)
     {
+        if (merchantId == Guid.Empty)
+            return BadRequest(new { error = "merchantId is required" });
+
         var reports = await _reconRepo.GetByMerchantAsync(merchantId, ct);
         return Ok(reports.Select(MapToDto).ToList());
     }
@@ -39,8 +42,14 @@ public class ReconciliationController : ControllerBase
     public async Task<ActionResult> TriggerReconciliation(
         [FromBody] TriggerReconciliationRequest request, CancellationToken ct)
     {
+        if (request.MerchantId == Guid.Empty)
+            return BadRequest(new { error = "MerchantId is required" });
+
         var periodStart = request.PeriodStart ?? DateTime.UtcNow.AddDays(-1);
         var periodEnd = request.PeriodEnd ?? DateTime.UtcNow;
+
+        if (periodStart >= periodEnd)
+            return BadRequest(new { error = "PeriodStart must be before PeriodEnd" });
 
         var report = await _intelligence.ReconcileAsync(
             request.MerchantId, periodStart, periodEnd, ct);
@@ -52,6 +61,9 @@ public class ReconciliationController : ControllerBase
     public async Task<ActionResult<List<ReconciliationReportDto>>> TriggerBatchReconciliation(
         [FromBody] BatchReconciliationRequest request, CancellationToken ct)
     {
+        if (request.MerchantIds is null || !request.MerchantIds.Any())
+            return BadRequest(new { error = "MerchantIds must contain at least one ID" });
+
         var periodStart = request.PeriodStart ?? DateTime.UtcNow.AddDays(-1);
         var periodEnd = request.PeriodEnd ?? DateTime.UtcNow;
 
@@ -66,5 +78,5 @@ public class ReconciliationController : ControllerBase
         r.Id, r.MerchantId, r.PeriodStart, r.PeriodEnd, r.GeneratedAt,
         r.TotalTransactions, r.MatchedCount, r.UnmatchedCount, r.AnomalyCount,
         r.TotalVolume, r.MatchedVolume, r.DiscrepancyVolume,
-        r.TotalTransactions > 0 ? (decimal)r.MatchedCount / r.TotalTransactions * 100 : 100m);
+        r.TotalTransactions > 0 ? (decimal)r.MatchedCount / r.TotalTransactions * 100 : 0m);
 }

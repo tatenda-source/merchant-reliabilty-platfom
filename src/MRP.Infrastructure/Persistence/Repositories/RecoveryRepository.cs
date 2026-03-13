@@ -11,13 +11,34 @@ public class RecoveryRepository : IRecoveryRepository
 
     public RecoveryRepository(MrpDbContext db) => _db = db;
 
-    public async Task<List<Anomaly>> GetUnresolvedAnomaliesAsync(CancellationToken ct) =>
+    public async Task<List<Anomaly>> GetUnresolvedAnomaliesAsync(int page, int pageSize, CancellationToken ct) =>
         await _db.Anomalies
             .Where(a => !a.IsResolved)
             .OrderByDescending(a => a.Severity == "critical")
             .ThenByDescending(a => a.Severity == "high")
             .ThenByDescending(a => a.DetectedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
+
+    public async Task<object> GetUnresolvedStatsAsync(CancellationToken ct)
+    {
+        var stats = await _db.Anomalies
+            .Where(a => !a.IsResolved)
+            .GroupBy(a => a.Severity)
+            .Select(g => new { Severity = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var total = stats.Sum(s => s.Count);
+        return new
+        {
+            queueSize = total,
+            criticalCount = stats.FirstOrDefault(s => s.Severity == "critical")?.Count ?? 0,
+            highCount = stats.FirstOrDefault(s => s.Severity == "high")?.Count ?? 0,
+            mediumCount = stats.FirstOrDefault(s => s.Severity == "medium")?.Count ?? 0,
+            lowCount = stats.FirstOrDefault(s => s.Severity == "low")?.Count ?? 0
+        };
+    }
 
     public async Task<Anomaly?> GetAnomalyByIdAsync(Guid id, CancellationToken ct) =>
         await _db.Anomalies
@@ -55,7 +76,6 @@ public class RecoveryRepository : IRecoveryRepository
     public async Task<Dictionary<RecoveryStrategy, decimal>> GetStrategySuccessRatesAsync(
         AnomalyType anomalyType, CancellationToken ct)
     {
-        // Get attempts for anomalies of this type (last 90 days)
         var cutoff = DateTime.UtcNow.AddDays(-90);
         var attempts = await _db.RecoveryAttempts
             .Where(r => r.Anomaly.Type == anomalyType && r.AttemptedAt >= cutoff)
@@ -69,7 +89,7 @@ public class RecoveryRepository : IRecoveryRepository
             .ToListAsync(ct);
 
         return attempts
-            .Where(a => a.Total >= 3) // Need at least 3 samples for a meaningful rate
+            .Where(a => a.Total >= 3)
             .ToDictionary(
                 a => a.Strategy,
                 a => (decimal)a.Successful / a.Total * 100);
