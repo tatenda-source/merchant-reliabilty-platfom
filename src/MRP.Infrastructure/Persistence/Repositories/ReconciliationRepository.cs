@@ -12,8 +12,7 @@ public class ReconciliationRepository : IReconciliationRepository
 
     public async Task<ReconciliationReport?> GetByIdAsync(Guid id, CancellationToken ct) =>
         await _db.ReconciliationReports
-            .Include(r => r.Matches)
-                .ThenInclude(m => m.Anomalies)
+            .Include(r => r.Anomalies)
             .FirstOrDefaultAsync(r => r.Id == id, ct);
 
     public async Task<List<ReconciliationReport>> GetByMerchantAsync(

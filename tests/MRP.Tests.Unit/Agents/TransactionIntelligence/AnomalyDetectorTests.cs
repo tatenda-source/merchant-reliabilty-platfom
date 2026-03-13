@@ -1,10 +1,10 @@
 using FluentAssertions;
-using MRP.Agents.TransactionIntelligence;
+using MRP.Agents.Intelligence;
 using MRP.Domain.Entities;
 using MRP.Domain.Enums;
 using Xunit;
 
-namespace MRP.Tests.Unit.Agents.TransactionIntelligence;
+namespace MRP.Tests.Unit.Agents.Intelligence;
 
 public class AnomalyDetectorTests
 {

@@ -20,5 +20,4 @@ public class Transaction
     public string? RawPayload { get; set; }
 
     public Merchant Merchant { get; set; } = null!;
-    public ICollection<TransactionMatch> Matches { get; set; } = new List<TransactionMatch>();
 }

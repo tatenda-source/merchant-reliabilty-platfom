@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using MRP.Application.DTOs;
-using MRP.Domain.Entities;
-using MRP.Domain.Enums;
 using MRP.Domain.Interfaces;
 
 namespace MRP.Api.Controllers;
@@ -11,14 +9,12 @@ namespace MRP.Api.Controllers;
 public class RecoveryController : ControllerBase
 {
     private readonly IRecoveryRepository _recoveryRepo;
-    private readonly IAgentTaskRepository _taskRepo;
+    private readonly IRecoveryEngine _recovery;
 
-    public RecoveryController(
-        IRecoveryRepository recoveryRepo,
-        IAgentTaskRepository taskRepo)
+    public RecoveryController(IRecoveryRepository recoveryRepo, IRecoveryEngine recovery)
     {
         _recoveryRepo = recoveryRepo;
-        _taskRepo = taskRepo;
+        _recovery = recovery;
     }
 
     [HttpGet("queue")]
@@ -37,27 +33,21 @@ public class RecoveryController : ControllerBase
         var attempts = await _recoveryRepo.GetAttemptsByAnomalyAsync(anomalyId, ct);
         return Ok(attempts.Select(a => new RecoveryAttemptDto(
             a.Id, a.AnomalyId, a.Strategy.ToString(), a.AttemptNumber,
-            a.IsSuccessful, a.ResultDetails, a.AttemptedAt, a.CompletedAt)).ToList());
+            a.IsSuccessful, a.ResultDetails, a.ConfidenceScore,
+            a.DecisionReason, a.AttemptedAt, a.CompletedAt)).ToList());
     }
 
     [HttpPost("initiate")]
-    public async Task<ActionResult> InitiateRecovery(
+    public async Task<ActionResult<RecoveryAttemptDto>> InitiateRecovery(
         [FromBody] InitiateRecoveryRequest request, CancellationToken ct)
     {
-        await _taskRepo.AddAsync(new AgentTask
-        {
-            Id = Guid.NewGuid(),
-            AgentType = AgentType.Recovery,
-            TaskType = "recover",
-            InputPayload = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                anomalyId = request.AnomalyId
-            }),
-            Priority = 0,
-            CreatedAt = DateTime.UtcNow
-        }, ct);
+        var attempt = await _recovery.RecoverAsync(request.AnomalyId, ct);
 
-        return Accepted(new { message = "Recovery initiated" });
+        return Ok(new RecoveryAttemptDto(
+            attempt.Id, attempt.AnomalyId, attempt.Strategy.ToString(),
+            attempt.AttemptNumber, attempt.IsSuccessful, attempt.ResultDetails,
+            attempt.ConfidenceScore, attempt.DecisionReason,
+            attempt.AttemptedAt, attempt.CompletedAt));
     }
 
     [HttpGet("stats")]

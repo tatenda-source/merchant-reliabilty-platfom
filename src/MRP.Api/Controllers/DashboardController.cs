@@ -50,52 +50,32 @@ public class DashboardController : ControllerBase
             RecoveredAmount: 0));
     }
 
-    [HttpGet("agents/status")]
-    public async Task<ActionResult<List<AgentStatusDto>>> GetAgentStatus(CancellationToken ct)
+    [HttpGet("pipelines/status")]
+    public async Task<ActionResult> GetPipelineStatus(CancellationToken ct)
     {
-        var agentTypes = new[]
+        var unresolvedAnomalies = await _db.Anomalies.CountAsync(a => !a.IsResolved, ct);
+        var totalRecoveries = await _db.RecoveryAttempts.CountAsync(ct);
+        var successfulRecoveries = await _db.RecoveryAttempts.CountAsync(r => r.IsSuccessful, ct);
+        var highRiskSettlements = await _db.Settlements.CountAsync(s => s.RiskScore >= 70 && s.ActualSettlementTime == null, ct);
+        var highRiskMerchants = await _db.MerchantProfiles.CountAsync(m => m.BehaviourRiskScore >= 50, ct);
+
+        return Ok(new
         {
-            AgentType.Onboarding, AgentType.TransactionIntelligence, AgentType.Recovery,
-            AgentType.SettlementIntelligence, AgentType.MerchantBehaviour, AgentType.RecoveryIntelligence
-        };
-        var statuses = new List<AgentStatusDto>();
-
-        foreach (var type in agentTypes)
-        {
-            var pending = await _db.AgentTasks
-                .CountAsync(t => t.AgentType == type && t.Status == "queued", ct);
-            var completed = await _db.AgentTasks
-                .CountAsync(t => t.AgentType == type && t.Status == "completed", ct);
-            var failed = await _db.AgentTasks
-                .CountAsync(t => t.AgentType == type && t.Status == "failed", ct);
-            var total = completed + failed;
-            var successRate = total > 0 ? (decimal)completed / total * 100 : 100m;
-
-            var lastRun = await _db.AgentTasks
-                .Where(t => t.AgentType == type && t.CompletedAt.HasValue)
-                .OrderByDescending(t => t.CompletedAt)
-                .Select(t => t.CompletedAt)
-                .FirstOrDefaultAsync(ct);
-
-            statuses.Add(new AgentStatusDto(
-                Name: type switch
-                {
-                    AgentType.Onboarding => "Onboarding Agent",
-                    AgentType.TransactionIntelligence => "Transaction Intelligence Agent",
-                    AgentType.Recovery => "Recovery Agent",
-                    AgentType.SettlementIntelligence => "Settlement Intelligence Agent",
-                    AgentType.MerchantBehaviour => "Merchant Behaviour Agent",
-                    AgentType.RecoveryIntelligence => "Recovery Intelligence Agent",
-                    _ => type.ToString()
-                },
-                Type: type.ToString(),
-                State: "Running",
-                LastRunAt: lastRun,
-                PendingTasks: pending,
-                CompletedTasks: completed,
-                SuccessRate: Math.Round(successRate, 1)));
-        }
-
-        return Ok(statuses);
+            ingestion = new { status = "Active" },
+            intelligence = new
+            {
+                status = "Active",
+                unresolvedAnomalies,
+                highRiskSettlements,
+                highRiskMerchants
+            },
+            recovery = new
+            {
+                status = "Active",
+                totalAttempts = totalRecoveries,
+                successRate = totalRecoveries > 0
+                    ? Math.Round((decimal)successfulRecoveries / totalRecoveries * 100, 1) : 0m
+            }
+        });
     }
 }

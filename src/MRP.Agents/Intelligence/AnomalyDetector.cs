@@ -1,7 +1,7 @@
 using MRP.Domain.Entities;
 using MRP.Domain.Enums;
 
-namespace MRP.Agents.TransactionIntelligence;
+namespace MRP.Agents.Intelligence;
 
 public class AnomalyDetector
 {
@@ -22,6 +22,7 @@ public class AnomalyDetector
             anomalies.Add(new Anomaly
             {
                 Id = Guid.NewGuid(),
+                MerchantId = merchantId,
                 Type = AnomalyType.VelocityAnomaly,
                 Description = $"Velocity spike: {lastMinute} transactions in last minute (threshold: {maxPerMinute})",
                 Severity = "high",
@@ -34,6 +35,7 @@ public class AnomalyDetector
             anomalies.Add(new Anomaly
             {
                 Id = Guid.NewGuid(),
+                MerchantId = merchantId,
                 Type = AnomalyType.VelocityAnomaly,
                 Description = $"Hourly volume anomaly: {lastHour} transactions (threshold: {maxPerHour})",
                 Severity = "medium",
@@ -59,10 +61,13 @@ public class AnomalyDetector
                 anomalies.Add(new Anomaly
                 {
                     Id = Guid.NewGuid(),
+                    MerchantId = tx.MerchantId,
+                    TransactionId = tx.Id,
                     Type = AnomalyType.DuplicateTransaction,
                     Description = $"Possible duplicate: {tx.MerchantReference} ${tx.Amount} within 5 minutes",
                     Severity = "high",
-                    DetectedAt = DateTime.UtcNow
+                    DetectedAt = DateTime.UtcNow,
+                    Amount = tx.Amount
                 });
             }
 

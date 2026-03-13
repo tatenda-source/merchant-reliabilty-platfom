@@ -10,6 +10,8 @@ public class RecoveryAttempt
     public int AttemptNumber { get; set; }
     public bool IsSuccessful { get; set; }
     public string? ResultDetails { get; set; }
+    public decimal ConfidenceScore { get; set; }
+    public string? DecisionReason { get; set; }
     public DateTime AttemptedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
 

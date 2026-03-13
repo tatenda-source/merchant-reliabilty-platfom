@@ -23,24 +23,6 @@ public class ReconciliationReportConfiguration : IEntityTypeConfiguration<Reconc
     }
 }
 
-public class TransactionMatchConfiguration : IEntityTypeConfiguration<TransactionMatch>
-{
-    public void Configure(EntityTypeBuilder<TransactionMatch> builder)
-    {
-        builder.ToTable("transaction_matches");
-        builder.HasKey(m => m.Id);
-        builder.Property(m => m.Reference).HasMaxLength(128);
-        builder.Property(m => m.ResolutionStatus).HasMaxLength(32);
-
-        builder.HasOne(m => m.Report)
-            .WithMany(r => r.Matches)
-            .HasForeignKey(m => m.ReconciliationReportId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasIndex(m => m.Reference);
-    }
-}
-
 public class AnomalyConfiguration : IEntityTypeConfiguration<Anomaly>
 {
     public void Configure(EntityTypeBuilder<Anomaly> builder)
@@ -50,13 +32,25 @@ public class AnomalyConfiguration : IEntityTypeConfiguration<Anomaly>
         builder.Property(a => a.Type).HasConversion<string>().HasMaxLength(32);
         builder.Property(a => a.Severity).HasMaxLength(16);
         builder.Property(a => a.Description).HasMaxLength(1024);
+        builder.Property(a => a.Amount).HasPrecision(18, 4);
 
-        builder.HasOne(a => a.Match)
-            .WithMany(m => m.Anomalies)
-            .HasForeignKey(a => a.TransactionMatchId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(a => a.Merchant)
+            .WithMany()
+            .HasForeignKey(a => a.MerchantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(a => a.Transaction)
+            .WithMany()
+            .HasForeignKey(a => a.TransactionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(a => a.Report)
+            .WithMany(r => r.Anomalies)
+            .HasForeignKey(a => a.ReconciliationReportId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasIndex(a => new { a.IsResolved, a.Severity });
+        builder.HasIndex(a => a.MerchantId);
     }
 }
 
@@ -67,38 +61,65 @@ public class RecoveryAttemptConfiguration : IEntityTypeConfiguration<RecoveryAtt
         builder.ToTable("recovery_attempts");
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Strategy).HasConversion<string>().HasMaxLength(32);
+        builder.Property(r => r.ConfidenceScore).HasPrecision(5, 2);
+        builder.Property(r => r.DecisionReason).HasMaxLength(2048);
 
         builder.HasOne(r => r.Anomaly)
-            .WithOne(a => a.RecoveryAttempt)
-            .HasForeignKey<RecoveryAttempt>(r => r.AnomalyId)
+            .WithMany(a => a.RecoveryAttempts)
+            .HasForeignKey(r => r.AnomalyId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(r => r.AnomalyId);
     }
 }
 
-public class AgentTaskConfiguration : IEntityTypeConfiguration<AgentTask>
+public class SettlementConfiguration : IEntityTypeConfiguration<Settlement>
 {
-    public void Configure(EntityTypeBuilder<AgentTask> builder)
+    public void Configure(EntityTypeBuilder<Settlement> builder)
     {
-        builder.ToTable("agent_tasks");
-        builder.HasKey(t => t.Id);
-        builder.Property(t => t.AgentType).HasConversion<string>().HasMaxLength(32);
-        builder.Property(t => t.TaskType).HasMaxLength(64);
-        builder.Property(t => t.Status).HasMaxLength(16);
+        builder.ToTable("settlements");
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.Amount).HasPrecision(18, 4);
+        builder.Property(s => s.RiskScore).HasPrecision(5, 2);
+        builder.Property(s => s.Confidence).HasPrecision(5, 2);
+        builder.Property(s => s.PaymentMethod).HasConversion<string>().HasMaxLength(32);
+        builder.Property(s => s.RiskFactors).HasMaxLength(2048);
 
-        builder.HasOne(t => t.Result)
-            .WithOne(r => r.Task)
-            .HasForeignKey<AgentResult>(r => r.AgentTaskId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne(s => s.Transaction)
+            .WithMany()
+            .HasForeignKey(s => s.TransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(t => new { t.AgentType, t.Status, t.Priority });
+        builder.HasOne(s => s.Merchant)
+            .WithMany()
+            .HasForeignKey(s => s.MerchantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(s => new { s.MerchantId, s.CreatedAt });
+        builder.HasIndex(s => s.RiskScore);
     }
 }
 
-public class AgentResultConfiguration : IEntityTypeConfiguration<AgentResult>
+public class MerchantProfileConfiguration : IEntityTypeConfiguration<MerchantProfile>
 {
-    public void Configure(EntityTypeBuilder<AgentResult> builder)
+    public void Configure(EntityTypeBuilder<MerchantProfile> builder)
     {
-        builder.ToTable("agent_results");
-        builder.HasKey(r => r.Id);
+        builder.ToTable("merchant_profiles");
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.AvgTransactionsPerHour).HasPrecision(10, 4);
+        builder.Property(m => m.PeakTransactionsPerHour).HasPrecision(10, 4);
+        builder.Property(m => m.RetryRate).HasPrecision(5, 2);
+        builder.Property(m => m.DuplicateRate).HasPrecision(5, 2);
+        builder.Property(m => m.CallbackFailureRate).HasPrecision(5, 2);
+        builder.Property(m => m.BehaviourRiskScore).HasPrecision(5, 2);
+        builder.Property(m => m.ActiveAlerts).HasMaxLength(4096);
+
+        builder.HasOne(m => m.Merchant)
+            .WithMany()
+            .HasForeignKey(m => m.MerchantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(m => m.MerchantId).IsUnique();
+        builder.HasIndex(m => m.BehaviourRiskScore);
     }
 }

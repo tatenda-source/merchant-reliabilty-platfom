@@ -13,11 +13,16 @@ public class RecoveryRepository : IRecoveryRepository
     public async Task<List<Anomaly>> GetUnresolvedAnomaliesAsync(CancellationToken ct) =>
         await _db.Anomalies
             .Where(a => !a.IsResolved)
-            .Include(a => a.Match)
             .OrderByDescending(a => a.Severity == "critical")
             .ThenByDescending(a => a.Severity == "high")
             .ThenByDescending(a => a.DetectedAt)
             .ToListAsync(ct);
+
+    public async Task<Anomaly?> GetAnomalyByIdAsync(Guid id, CancellationToken ct) =>
+        await _db.Anomalies
+            .Include(a => a.Merchant)
+            .Include(a => a.RecoveryAttempts)
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public async Task<RecoveryAttempt> AddAttemptAsync(
         RecoveryAttempt attempt, CancellationToken ct)
@@ -33,4 +38,16 @@ public class RecoveryRepository : IRecoveryRepository
             .Where(r => r.AnomalyId == anomalyId)
             .OrderByDescending(r => r.AttemptedAt)
             .ToListAsync(ct);
+
+    public async Task AddAnomalyAsync(Anomaly anomaly, CancellationToken ct)
+    {
+        _db.Anomalies.Add(anomaly);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task UpdateAnomalyAsync(Anomaly anomaly, CancellationToken ct)
+    {
+        _db.Anomalies.Update(anomaly);
+        await _db.SaveChangesAsync(ct);
+    }
 }

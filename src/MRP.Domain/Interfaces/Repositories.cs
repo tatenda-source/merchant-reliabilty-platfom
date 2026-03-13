@@ -31,39 +31,25 @@ public interface IReconciliationRepository
 public interface IRecoveryRepository
 {
     Task<List<Anomaly>> GetUnresolvedAnomaliesAsync(CancellationToken ct);
+    Task<Anomaly?> GetAnomalyByIdAsync(Guid id, CancellationToken ct);
     Task<RecoveryAttempt> AddAttemptAsync(RecoveryAttempt attempt, CancellationToken ct);
     Task<List<RecoveryAttempt>> GetAttemptsByAnomalyAsync(Guid anomalyId, CancellationToken ct);
-}
-
-public interface IAgentTaskRepository
-{
-    Task<AgentTask?> DequeueAsync(AgentType agentType, CancellationToken ct);
-    Task<AgentTask> AddAsync(AgentTask task, CancellationToken ct);
-    Task UpdateAsync(AgentTask task, CancellationToken ct);
-    Task SaveResultAsync(AgentResult result, CancellationToken ct);
+    Task AddAnomalyAsync(Anomaly anomaly, CancellationToken ct);
+    Task UpdateAnomalyAsync(Anomaly anomaly, CancellationToken ct);
 }
 
 public interface ISettlementRepository
 {
-    Task<SettlementPrediction> AddAsync(SettlementPrediction prediction, CancellationToken ct);
-    Task<List<SettlementPrediction>> GetByMerchantAsync(Guid merchantId, CancellationToken ct);
-    Task<List<SettlementPrediction>> GetHighRiskAsync(decimal threshold, CancellationToken ct);
-    Task UpdateAsync(SettlementPrediction prediction, CancellationToken ct);
-    Task<decimal> GetAverageSettlementHoursAsync(Guid merchantId, PaymentMethod method, CancellationToken ct);
+    Task<Settlement> AddAsync(Settlement settlement, CancellationToken ct);
+    Task<List<Settlement>> GetByMerchantAsync(Guid merchantId, CancellationToken ct);
+    Task<List<Settlement>> GetHighRiskAsync(decimal threshold, CancellationToken ct);
+    Task UpdateAsync(Settlement settlement, CancellationToken ct);
 }
 
-public interface IMerchantBehaviourRepository
+public interface IMerchantProfileRepository
 {
-    Task<MerchantBehaviourProfile?> GetByMerchantAsync(Guid merchantId, CancellationToken ct);
-    Task<MerchantBehaviourProfile> AddAsync(MerchantBehaviourProfile profile, CancellationToken ct);
-    Task UpdateAsync(MerchantBehaviourProfile profile, CancellationToken ct);
-    Task<List<MerchantBehaviourProfile>> GetHighRiskProfilesAsync(decimal threshold, CancellationToken ct);
-}
-
-public interface IRecoveryIntelligenceRepository
-{
-    Task<RecoveryStrategyDecision> AddAsync(RecoveryStrategyDecision decision, CancellationToken ct);
-    Task<List<RecoveryStrategyDecision>> GetByAnomalyAsync(Guid anomalyId, CancellationToken ct);
-    Task UpdateAsync(RecoveryStrategyDecision decision, CancellationToken ct);
-    Task<decimal> GetStrategySuccessRateAsync(RecoveryStrategy strategy, CancellationToken ct);
+    Task<MerchantProfile?> GetByMerchantAsync(Guid merchantId, CancellationToken ct);
+    Task<MerchantProfile> AddAsync(MerchantProfile profile, CancellationToken ct);
+    Task UpdateAsync(MerchantProfile profile, CancellationToken ct);
+    Task<List<MerchantProfile>> GetHighRiskAsync(decimal threshold, CancellationToken ct);
 }

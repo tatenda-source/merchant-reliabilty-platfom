@@ -16,5 +16,5 @@ public class ReconciliationReport
     public decimal DiscrepancyVolume { get; set; }
 
     public Merchant Merchant { get; set; } = null!;
-    public ICollection<TransactionMatch> Matches { get; set; } = new List<TransactionMatch>();
+    public ICollection<Anomaly> Anomalies { get; set; } = new List<Anomaly>();
 }

@@ -73,17 +73,10 @@ public record RecoveryAttemptDto(
     int AttemptNumber,
     bool IsSuccessful,
     string? ResultDetails,
+    decimal ConfidenceScore,
+    string? DecisionReason,
     DateTime AttemptedAt,
     DateTime? CompletedAt);
-
-public record AgentStatusDto(
-    string Name,
-    string Type,
-    string State,
-    DateTime? LastRunAt,
-    int PendingTasks,
-    int CompletedTasks,
-    decimal SuccessRate);
 
 public record CreateMerchantRequest(
     string Name,
@@ -113,7 +106,7 @@ public record SettlementPredictionDto(
     DateTime PredictedSettlementTime,
     decimal Confidence,
     string PaymentMethod,
-    string RiskFactors,
+    string? RiskFactors,
     DateTime CreatedAt,
     DateTime? ActualSettlementTime);
 
@@ -126,35 +119,21 @@ public record SettlementRiskSummaryDto(
 // Merchant Behaviour DTOs
 public record MerchantBehaviourDto(
     Guid MerchantId,
-    decimal AvgTransactionsPerMinute,
     decimal AvgTransactionsPerHour,
+    decimal PeakTransactionsPerHour,
     decimal RetryRate,
     decimal DuplicateRate,
     decimal CallbackFailureRate,
-    decimal RiskScore,
-    decimal PeakTransactionsPerHour,
+    decimal BehaviourRiskScore,
     List<string>? ActiveAlerts,
     DateTime LastAnalysedAt);
 
 // Recovery Intelligence DTOs
-public record RecoveryStrategyDecisionDto(
-    Guid Id,
-    Guid AnomalyId,
-    string ChosenStrategy,
-    decimal ConfidenceScore,
-    string DecisionReason,
-    decimal MerchantReliabilityAtDecision,
-    decimal FinancialRiskAmount,
-    bool WasEffective,
-    DateTime DecidedAt);
-
 public record RecoveryIntelligenceStatsDto(
-    int TotalDecisions,
-    decimal AutonomousRecoveryRate,
-    decimal AverageConfidence,
-    Dictionary<string, decimal> StrategySuccessRates);
+    int TotalAttempts,
+    decimal SuccessRate,
+    decimal AverageConfidence);
 
 // Intelligence request DTOs
 public record TriggerSettlementAnalysisRequest(Guid MerchantId);
 public record TriggerBehaviourAnalysisRequest(Guid MerchantId);
-public record TriggerIntelligentRecoveryRequest(Guid AnomalyId, Guid MerchantId, decimal TransactionAmount);

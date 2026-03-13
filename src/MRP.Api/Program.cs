@@ -1,10 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using MRP.Agents.MerchantBehaviour;
-using MRP.Agents.Onboarding;
+using MRP.Agents.Handlers;
+using MRP.Agents.Ingestion;
+using MRP.Agents.Intelligence;
 using MRP.Agents.Recovery;
-using MRP.Agents.RecoveryIntelligence;
-using MRP.Agents.SettlementIntelligence;
-using MRP.Agents.TransactionIntelligence;
 using MRP.Domain.Interfaces;
 using MRP.Infrastructure.EventBus;
 using MRP.Infrastructure.Paynow;
@@ -28,28 +26,25 @@ builder.Services.AddScoped<IMerchantRepository, MerchantRepository>();
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<IReconciliationRepository, ReconciliationRepository>();
 builder.Services.AddScoped<IRecoveryRepository, RecoveryRepository>();
-builder.Services.AddScoped<IAgentTaskRepository, AgentTaskRepository>();
 builder.Services.AddScoped<ISettlementRepository, SettlementRepository>();
-builder.Services.AddScoped<IMerchantBehaviourRepository, MerchantBehaviourRepository>();
-builder.Services.AddScoped<IRecoveryIntelligenceRepository, RecoveryIntelligenceRepository>();
+builder.Services.AddScoped<IMerchantProfileRepository, MerchantProfileRepository>();
 
 // Paynow
 builder.Services.Configure<PaynowOptions>(
     builder.Configuration.GetSection("Paynow"));
 builder.Services.AddScoped<IPaynowGateway, PaynowGatewayWrapper>();
 
-// Event Bus (MediatR)
+// Event Bus (MediatR) — register from both Infrastructure (bus) and Agents (handlers)
 builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssemblyContaining<MrpDbContext>());
+    cfg.RegisterServicesFromAssemblies(
+        typeof(MrpDbContext).Assembly,
+        typeof(TransactionReceivedHandler).Assembly));
 builder.Services.AddScoped<IEventBus, MediatREventBus>();
 
-// Background Agents
-builder.Services.AddHostedService<OnboardingAgent>();
-builder.Services.AddHostedService<TransactionIntelligenceAgent>();
-builder.Services.AddHostedService<RecoveryAgent>();
-builder.Services.AddHostedService<SettlementIntelligenceAgent>();
-builder.Services.AddHostedService<MerchantBehaviourAgent>();
-builder.Services.AddHostedService<RecoveryIntelligenceAgent>();
+// Pipeline Services
+builder.Services.AddScoped<IIngestionService, IngestionService>();
+builder.Services.AddScoped<IIntelligenceEngine, IntelligenceEngine>();
+builder.Services.AddScoped<IRecoveryEngine, RecoveryEngine>();
 
 // API
 builder.Services.AddControllers();
@@ -59,8 +54,8 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new()
     {
         Title = "MRP - Merchant Reliability Platform",
-        Version = "v1",
-        Description = "AI-powered Merchant Reliability Platform for Paynow Zimbabwe"
+        Version = "v2",
+        Description = "Event-driven Merchant Reliability Platform for Paynow Zimbabwe"
     });
 });
 

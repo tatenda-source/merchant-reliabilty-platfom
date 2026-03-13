@@ -11,14 +11,12 @@ namespace MRP.Api.Controllers;
 public class MerchantsController : ControllerBase
 {
     private readonly IMerchantRepository _merchantRepo;
-    private readonly IAgentTaskRepository _taskRepo;
+    private readonly IIngestionService _ingestion;
 
-    public MerchantsController(
-        IMerchantRepository merchantRepo,
-        IAgentTaskRepository taskRepo)
+    public MerchantsController(IMerchantRepository merchantRepo, IIngestionService ingestion)
     {
         _merchantRepo = merchantRepo;
-        _taskRepo = taskRepo;
+        _ingestion = ingestion;
     }
 
     [HttpGet]
@@ -65,16 +63,8 @@ public class MerchantsController : ControllerBase
 
         await _merchantRepo.AddAsync(merchant, ct);
 
-        // Queue onboarding validation
-        await _taskRepo.AddAsync(new AgentTask
-        {
-            Id = Guid.NewGuid(),
-            AgentType = AgentType.Onboarding,
-            TaskType = "validate_integration",
-            InputPayload = System.Text.Json.JsonSerializer.Serialize(new { merchantId = merchant.Id }),
-            Priority = 0,
-            CreatedAt = DateTime.UtcNow
-        }, ct);
+        // Validate integration asynchronously
+        _ = Task.Run(() => _ingestion.ValidateMerchantIntegrationAsync(merchant.Id, ct), ct);
 
         return CreatedAtAction(nameof(GetById), new { id = merchant.Id }, MapToDto(merchant));
     }

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using MRP.Application.DTOs;
 using MRP.Domain.Entities;
-using MRP.Domain.Enums;
 using MRP.Domain.Interfaces;
 
 namespace MRP.Api.Controllers;
@@ -11,14 +10,13 @@ namespace MRP.Api.Controllers;
 public class ReconciliationController : ControllerBase
 {
     private readonly IReconciliationRepository _reconRepo;
-    private readonly IAgentTaskRepository _taskRepo;
+    private readonly IIntelligenceEngine _intelligence;
 
     public ReconciliationController(
-        IReconciliationRepository reconRepo,
-        IAgentTaskRepository taskRepo)
+        IReconciliationRepository reconRepo, IIntelligenceEngine intelligence)
     {
         _reconRepo = reconRepo;
-        _taskRepo = taskRepo;
+        _intelligence = intelligence;
     }
 
     [HttpGet("reports")]
@@ -41,22 +39,13 @@ public class ReconciliationController : ControllerBase
     public async Task<ActionResult> TriggerReconciliation(
         [FromBody] TriggerReconciliationRequest request, CancellationToken ct)
     {
-        await _taskRepo.AddAsync(new AgentTask
-        {
-            Id = Guid.NewGuid(),
-            AgentType = AgentType.TransactionIntelligence,
-            TaskType = "reconcile",
-            InputPayload = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                merchantId = request.MerchantId,
-                periodStart = request.PeriodStart ?? DateTime.UtcNow.AddDays(-1),
-                periodEnd = request.PeriodEnd ?? DateTime.UtcNow
-            }),
-            Priority = 0,
-            CreatedAt = DateTime.UtcNow
-        }, ct);
+        var periodStart = request.PeriodStart ?? DateTime.UtcNow.AddDays(-1);
+        var periodEnd = request.PeriodEnd ?? DateTime.UtcNow;
 
-        return Accepted(new { message = "Reconciliation queued" });
+        var report = await _intelligence.ReconcileAsync(
+            request.MerchantId, periodStart, periodEnd, ct);
+
+        return Ok(MapToDto(report));
     }
 
     private static ReconciliationReportDto MapToDto(ReconciliationReport r) => new(
