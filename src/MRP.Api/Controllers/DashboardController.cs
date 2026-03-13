@@ -53,7 +53,11 @@ public class DashboardController : ControllerBase
     [HttpGet("agents/status")]
     public async Task<ActionResult<List<AgentStatusDto>>> GetAgentStatus(CancellationToken ct)
     {
-        var agentTypes = new[] { AgentType.Onboarding, AgentType.TransactionIntelligence, AgentType.Recovery };
+        var agentTypes = new[]
+        {
+            AgentType.Onboarding, AgentType.TransactionIntelligence, AgentType.Recovery,
+            AgentType.SettlementIntelligence, AgentType.MerchantBehaviour, AgentType.RecoveryIntelligence
+        };
         var statuses = new List<AgentStatusDto>();
 
         foreach (var type in agentTypes)
@@ -79,6 +83,9 @@ public class DashboardController : ControllerBase
                     AgentType.Onboarding => "Onboarding Agent",
                     AgentType.TransactionIntelligence => "Transaction Intelligence Agent",
                     AgentType.Recovery => "Recovery Agent",
+                    AgentType.SettlementIntelligence => "Settlement Intelligence Agent",
+                    AgentType.MerchantBehaviour => "Merchant Behaviour Agent",
+                    AgentType.RecoveryIntelligence => "Recovery Intelligence Agent",
                     _ => type.ToString()
                 },
                 Type: type.ToString(),

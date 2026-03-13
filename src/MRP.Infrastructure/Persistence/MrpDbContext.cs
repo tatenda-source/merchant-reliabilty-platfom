@@ -16,6 +16,9 @@ public class MrpDbContext : DbContext
     public DbSet<RecoveryAttempt> RecoveryAttempts => Set<RecoveryAttempt>();
     public DbSet<AgentTask> AgentTasks => Set<AgentTask>();
     public DbSet<AgentResult> AgentResults => Set<AgentResult>();
+    public DbSet<SettlementPrediction> SettlementPredictions => Set<SettlementPrediction>();
+    public DbSet<MerchantBehaviourProfile> MerchantBehaviourProfiles => Set<MerchantBehaviourProfile>();
+    public DbSet<RecoveryStrategyDecision> RecoveryStrategyDecisions => Set<RecoveryStrategyDecision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

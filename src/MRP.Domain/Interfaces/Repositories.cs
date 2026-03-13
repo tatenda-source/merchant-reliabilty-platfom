@@ -42,3 +42,28 @@ public interface IAgentTaskRepository
     Task UpdateAsync(AgentTask task, CancellationToken ct);
     Task SaveResultAsync(AgentResult result, CancellationToken ct);
 }
+
+public interface ISettlementRepository
+{
+    Task<SettlementPrediction> AddAsync(SettlementPrediction prediction, CancellationToken ct);
+    Task<List<SettlementPrediction>> GetByMerchantAsync(Guid merchantId, CancellationToken ct);
+    Task<List<SettlementPrediction>> GetHighRiskAsync(decimal threshold, CancellationToken ct);
+    Task UpdateAsync(SettlementPrediction prediction, CancellationToken ct);
+    Task<decimal> GetAverageSettlementHoursAsync(Guid merchantId, PaymentMethod method, CancellationToken ct);
+}
+
+public interface IMerchantBehaviourRepository
+{
+    Task<MerchantBehaviourProfile?> GetByMerchantAsync(Guid merchantId, CancellationToken ct);
+    Task<MerchantBehaviourProfile> AddAsync(MerchantBehaviourProfile profile, CancellationToken ct);
+    Task UpdateAsync(MerchantBehaviourProfile profile, CancellationToken ct);
+    Task<List<MerchantBehaviourProfile>> GetHighRiskProfilesAsync(decimal threshold, CancellationToken ct);
+}
+
+public interface IRecoveryIntelligenceRepository
+{
+    Task<RecoveryStrategyDecision> AddAsync(RecoveryStrategyDecision decision, CancellationToken ct);
+    Task<List<RecoveryStrategyDecision>> GetByAnomalyAsync(Guid anomalyId, CancellationToken ct);
+    Task UpdateAsync(RecoveryStrategyDecision decision, CancellationToken ct);
+    Task<decimal> GetStrategySuccessRateAsync(RecoveryStrategy strategy, CancellationToken ct);
+}

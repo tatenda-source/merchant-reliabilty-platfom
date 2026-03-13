@@ -12,21 +12,21 @@ public class PaynowGatewayWrapper : IPaynowGateway
         MerchantIntegration integration, string pollUrl, CancellationToken ct)
     {
         var paynow = CreateClient(integration);
-        var response = await Task.Run(() => paynow.PollTransaction(pollUrl), ct);
+        var response = await paynow.PollTransactionAsync(pollUrl);
+
+        var status = response.WasPaid ? TransactionStatus.Paid : TransactionStatus.Pending;
 
         return new PaynowStatusResult(
             Reference: response.Reference ?? string.Empty,
             Amount: response.Amount,
-            Status: MapStatus(response.Status),
-            PaidOn: response.PaidOn,
-            PaynowReference: response.PaynowReference ?? string.Empty,
+            Status: status,
+            PaidOn: response.WasPaid ? DateTime.UtcNow : null,
+            PaynowReference: response.Reference ?? string.Empty,
             RawResponse: JsonSerializer.Serialize(new
             {
                 response.Reference,
                 response.Amount,
-                response.Status,
-                response.PaidOn,
-                response.PaynowReference
+                response.WasPaid
             }));
     }
 
@@ -38,7 +38,7 @@ public class PaynowGatewayWrapper : IPaynowGateway
         var payment = paynow.CreatePayment(reference, customerEmail);
         payment.Add("Payment", amount);
 
-        var response = await Task.Run(() => paynow.Send(payment), ct);
+        var response = await paynow.SendAsync(payment);
 
         return new PaynowInitResult(
             Success: response.Success(),
@@ -65,34 +65,23 @@ public class PaynowGatewayWrapper : IPaynowGateway
             _ => throw new ArgumentException($"Mobile method {method} not supported")
         };
 
-        var response = await Task.Run(
-            () => paynow.SendMobile(payment, phone, methodString), ct);
+        var response = await paynow.SendMobileAsync(payment, phone, methodString);
 
         return new PaynowInitResult(
             Success: response.Success(),
             PollUrl: response.PollUrl(),
             RedirectUrl: null,
-            Instructions: response.Instructions(),
+            Instructions: null,
             Error: response.Errors());
     }
 
-    private static Paynow CreateClient(MerchantIntegration integration)
+    private static Webdev.Payments.Paynow CreateClient(MerchantIntegration integration)
     {
-        var paynow = new Paynow(integration.PaynowIntegrationId, integration.PaynowIntegrationKey);
-        paynow.ResultUrl = integration.ResultUrl;
+        var paynow = new Webdev.Payments.Paynow(
+            integration.PaynowIntegrationId,
+            integration.PaynowIntegrationKey,
+            integration.ResultUrl);
         paynow.ReturnUrl = integration.ReturnUrl;
         return paynow;
     }
-
-    private static TransactionStatus MapStatus(string? status) => status?.ToLower() switch
-    {
-        "paid" => TransactionStatus.Paid,
-        "awaiting delivery" => TransactionStatus.AwaitingDelivery,
-        "delivered" => TransactionStatus.Delivered,
-        "cancelled" => TransactionStatus.Cancelled,
-        "refunded" => TransactionStatus.Refunded,
-        "disputed" => TransactionStatus.Disputed,
-        "failed" => TransactionStatus.Failed,
-        _ => TransactionStatus.Pending
-    };
 }

@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using MRP.Agents.MerchantBehaviour;
 using MRP.Agents.Onboarding;
 using MRP.Agents.Recovery;
+using MRP.Agents.RecoveryIntelligence;
+using MRP.Agents.SettlementIntelligence;
 using MRP.Agents.TransactionIntelligence;
 using MRP.Domain.Interfaces;
 using MRP.Infrastructure.EventBus;
@@ -26,6 +29,9 @@ builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<IReconciliationRepository, ReconciliationRepository>();
 builder.Services.AddScoped<IRecoveryRepository, RecoveryRepository>();
 builder.Services.AddScoped<IAgentTaskRepository, AgentTaskRepository>();
+builder.Services.AddScoped<ISettlementRepository, SettlementRepository>();
+builder.Services.AddScoped<IMerchantBehaviourRepository, MerchantBehaviourRepository>();
+builder.Services.AddScoped<IRecoveryIntelligenceRepository, RecoveryIntelligenceRepository>();
 
 // Paynow
 builder.Services.Configure<PaynowOptions>(
@@ -41,6 +47,9 @@ builder.Services.AddScoped<IEventBus, MediatREventBus>();
 builder.Services.AddHostedService<OnboardingAgent>();
 builder.Services.AddHostedService<TransactionIntelligenceAgent>();
 builder.Services.AddHostedService<RecoveryAgent>();
+builder.Services.AddHostedService<SettlementIntelligenceAgent>();
+builder.Services.AddHostedService<MerchantBehaviourAgent>();
+builder.Services.AddHostedService<RecoveryIntelligenceAgent>();
 
 // API
 builder.Services.AddControllers();

@@ -103,3 +103,58 @@ public record TriggerReconciliationRequest(
 
 public record InitiateRecoveryRequest(
     Guid AnomalyId);
+
+// Settlement Intelligence DTOs
+public record SettlementPredictionDto(
+    Guid Id,
+    Guid TransactionId,
+    Guid MerchantId,
+    decimal RiskScore,
+    DateTime PredictedSettlementTime,
+    decimal Confidence,
+    string PaymentMethod,
+    string RiskFactors,
+    DateTime CreatedAt,
+    DateTime? ActualSettlementTime);
+
+public record SettlementRiskSummaryDto(
+    int TotalPredictions,
+    int HighRiskCount,
+    decimal AverageRiskScore,
+    decimal PredictionAccuracy);
+
+// Merchant Behaviour DTOs
+public record MerchantBehaviourDto(
+    Guid MerchantId,
+    decimal AvgTransactionsPerMinute,
+    decimal AvgTransactionsPerHour,
+    decimal RetryRate,
+    decimal DuplicateRate,
+    decimal CallbackFailureRate,
+    decimal RiskScore,
+    decimal PeakTransactionsPerHour,
+    List<string>? ActiveAlerts,
+    DateTime LastAnalysedAt);
+
+// Recovery Intelligence DTOs
+public record RecoveryStrategyDecisionDto(
+    Guid Id,
+    Guid AnomalyId,
+    string ChosenStrategy,
+    decimal ConfidenceScore,
+    string DecisionReason,
+    decimal MerchantReliabilityAtDecision,
+    decimal FinancialRiskAmount,
+    bool WasEffective,
+    DateTime DecidedAt);
+
+public record RecoveryIntelligenceStatsDto(
+    int TotalDecisions,
+    decimal AutonomousRecoveryRate,
+    decimal AverageConfidence,
+    Dictionary<string, decimal> StrategySuccessRates);
+
+// Intelligence request DTOs
+public record TriggerSettlementAnalysisRequest(Guid MerchantId);
+public record TriggerBehaviourAnalysisRequest(Guid MerchantId);
+public record TriggerIntelligentRecoveryRequest(Guid AnomalyId, Guid MerchantId, decimal TransactionAmount);
